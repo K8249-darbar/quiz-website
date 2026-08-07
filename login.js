@@ -20,18 +20,33 @@
     loginButton.textContent = isLoading ? "Signing in..." : "Login";
   }
 
-  // LocalStorage Session Helper Function
+  // Google Token (JWT) Decode કરવા માટેનું ફંકશન
+  function parseJwt(token) {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // LocalStorage માં બ્રાઉઝર સેશન સેવ કરવાનું હેલ્પર
   function setSessionData(userObj) {
     try {
       localStorage.setItem("quiz_user_session", JSON.stringify(userObj));
       localStorage.setItem("quiz_logged_in", "true");
+      localStorage.setItem("quiz_auth_user", JSON.stringify(userObj));
     } catch (e) {
-      console.error("LocalStorage save error:", e);
+      console.error("Session save error:", e);
     }
   }
 
   // ----------------------------------------------------
-  // ૧. EMAIL LOGIN (Firestore & Session Sync)
+  // ૧. EMAIL LOGIN
   // ----------------------------------------------------
   if (loginForm) {
     loginForm.addEventListener("submit", (event) => {
@@ -125,35 +140,28 @@
         });
       } catch (err) {
         console.log("Google GIS init info:", err);
-        container.innerHTML = `<button type="button" class="btn-secondary" style="font-size:0.85rem;" onclick="alert('Google Official One-Tap prompt initialized.')">🔒 Google OAuth Active</button>`;
       }
-    } else {
-      container.innerHTML = `<button type="button" class="btn-secondary" style="font-size:0.85rem;" onclick="alert('Google Accounts Identity Service active.')">🔒 Official Google Verification Enabled</button>`;
     }
   }
 
   // ----------------------------------------------------
-  // ૨. GOOGLE FORM LOGIN (Fix Session & Redirect)
+  // ૨. GOOGLE FORM LOGIN (Verify & Enter Quiz)
   // ----------------------------------------------------
   if (googleForm) {
     googleForm.addEventListener("submit", (e) => {
       e.preventDefault();
-      if (googleMessage) {
-        googleMessage.textContent = "";
-        googleMessage.style.color = "#dc2626";
-      }
-
+      
       const fullNameInput = document.getElementById("google-fullname");
       const emailInput = document.getElementById("google-email");
 
-      const fullName = fullNameInput ? fullNameInput.value.trim() : "Google User";
-      const email = emailInput ? emailInput.value.trim() : "user@gmail.com";
+      const fullName = (fullNameInput && fullNameInput.value.trim()) ? fullNameInput.value.trim() : "Google User";
+      const email = (emailInput && emailInput.value.trim()) ? emailInput.value.trim() : "google_user@gmail.com";
 
-      // Session save
-      setSessionData({ username: fullName, email: email, loginType: "Google Form" });
+      const userSession = { username: fullName, email: email, loginType: "Google Form" };
+      setSessionData(userSession);
 
       if (window.db) {
-        const googleDocId = (email || "user_" + Date.now()).replace(/[^a-zA-Z0-9]/g, "_");
+        const googleDocId = email.replace(/[^a-zA-Z0-9]/g, "_");
         window.db.collection("users").doc(googleDocId).set({
           fullName: fullName,
           email: email,
@@ -175,13 +183,18 @@
   // ----------------------------------------------------
   function handleCredentialResponse(response) {
     if (response && response.credential) {
-      const googleUser = { username: "Google User", email: "google_oauth@gmail.com", loginType: "Google OAuth" };
+      const decoded = parseJwt(response.credential);
+      const fullName = decoded ? (decoded.name || decoded.given_name) : "Google User";
+      const email = decoded ? decoded.email : "google_oauth@gmail.com";
+
+      const googleUser = { username: fullName, email: email, loginType: "Google OAuth" };
       setSessionData(googleUser);
 
       if (window.db) {
-        const googleDocId = "google_user_" + Date.now();
+        const googleDocId = email.replace(/[^a-zA-Z0-9]/g, "_");
         window.db.collection("users").doc(googleDocId).set({
-          fullName: "Google User",
+          fullName: fullName,
+          email: email,
           loginType: "Google OAuth",
           lastLogin: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true }).then(() => {
@@ -197,7 +210,7 @@
   window.handleCredentialResponse = handleCredentialResponse;
 
   // ----------------------------------------------------
-  // ૪. GUEST LOGIN (Fix Session & Redirect)
+  // ૪. GUEST LOGIN
   // ----------------------------------------------------
   const guestBtn = document.getElementById("guest-login-btn");
   if (guestBtn) {
@@ -227,7 +240,6 @@
   const resetModal = document.getElementById("reset-modal");
   const closeResetModal = document.getElementById("close-reset-modal");
   const resetForm = document.getElementById("reset-form");
-  const resetMessage = document.getElementById("reset-message");
 
   if (forgotLink && resetModal) {
     forgotLink.addEventListener("click", (e) => {
@@ -251,16 +263,7 @@
       if (!window.AuthManager) return;
       const res = window.AuthManager.resetPassword(email, newPass);
 
-      if (resetMessage) {
-        resetMessage.textContent = res.message;
-        resetMessage.style.color = res.ok ? "#166534" : "#991b1b";
-      }
-
-      if (res.ok) {
-        setTimeout(() => {
-          resetModal.classList.add("hidden");
-        }, 1800);
-      }
+      if (resetModal) resetModal.classList.add("hidden");
     });
   }
 })();
