@@ -183,7 +183,14 @@
 
     users.push(newUser);
     saveUsers(users);
-    return { ok: true, message: "Registration successful." };
+    
+if (window.db) {
+  window.db.collection("users").doc(newUser.username).set(newUser, { merge: true })
+    .then(() => console.log("Registered user synced to Firestore!"))
+    .catch((err) => console.error("Firestore register error:", err));
+}
+
+return { ok: true, message: "Registration successful." };
   }
 
   function loginUser(identifier, password, rememberUser) {
