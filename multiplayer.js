@@ -3,16 +3,10 @@
     window.location.replace("login.html");
   }
 
-  // Real-time Socket.IO Connection
-  let socket = null;
-  if (typeof window.io !== "undefined") {
-    socket = window.io();
-  }
-
-  // State
+  // State Variables
   let roomState = null;
-  let currentUser = { id: "user_" + Math.random().toString(36).substr(2, 6), name: "Player" };
-  let timerInterval = null;
+  let roomUnsubscribe = null;
+  let currentUser = { id: "usr_" + Math.random().toString(36).substr(2, 6), name: "Player" };
 
   // UI Elements
   const setupPanel = document.getElementById("mp-setup-panel");
@@ -56,6 +50,15 @@
   const mpPodiumCards = document.getElementById("mp-podium-cards");
   const mpFinalScoreboardBody = document.getElementById("mp-final-scoreboard-body");
 
+  function getDB() {
+    if (window.db) return window.db;
+    if (typeof firebase !== "undefined" && firebase.apps && firebase.apps.length) {
+      window.db = firebase.firestore();
+      return window.db;
+    }
+    return null;
+  }
+
   function initSessionUser() {
     let session = null;
     if (window.AuthManager) {
@@ -63,6 +66,7 @@
       if (session) {
         const name = session.fullName || session.username || "User";
         currentUser.name = name;
+        currentUser.id = session.username || currentUser.id;
         if (hostNameInput) hostNameInput.value = name;
         if (playerNameInput) playerNameInput.value = name;
       }
@@ -70,10 +74,7 @@
     const userBadge = document.getElementById("mp-user-badge");
     if (userBadge) {
       userBadge.style.cursor = "pointer";
-      userBadge.title = "Click to view Profile";
-      userBadge.onclick = () => {
-        window.location.href = "profile.html";
-      };
+      userBadge.onclick = () => window.location.href = "profile.html";
 
       if (!session) {
         userBadge.innerHTML = `<span class="user-chip-guest">Guest Player</span>`;
@@ -92,29 +93,44 @@
     const logoutBtn = document.getElementById("logout-btn");
     if (logoutBtn) {
       logoutBtn.onclick = () => {
-        if (confirm("Do you want to logout from the quiz portal?")) {
-          if (window.AuthManager) {
-            window.AuthManager.clearSession();
-          }
+        if (confirm("Do you want to logout?")) {
+          if (window.AuthManager) window.AuthManager.clearSession();
           window.location.href = "login.html";
         }
       };
     }
   }
 
-  // Socket setup
-  if (socket) {
-    socket.on("room_state", (updatedRoom) => {
-      roomState = updatedRoom;
-      updateUIPanels();
-    });
+  // Firebase Realtime Listener
+  function listenToRoom(roomCode) {
+    const db = getDB();
+    if (!db) return;
 
-    socket.on("error_message", (msg) => {
-      alert(msg);
-    });
+    if (roomUnsubscribe) roomUnsubscribe();
+
+    roomUnsubscribe = db.collection("multiplayer_rooms").doc(roomCode)
+      .onSnapshot((doc) => {
+        if (doc.exists) {
+          roomState = doc.data();
+          updateUIPanels();
+        } else {
+          alert("Room has been closed or does not exist.");
+          roomState = null;
+          updateUIPanels();
+        }
+      }, (err) => {
+        console.error("Firestore Listen Error:", err);
+      });
   }
 
+  // Create Room Function (Firestore)
   function createRoom() {
+    const db = getDB();
+    if (!db) {
+      alert("Database is initializing. Please try again in 2 seconds.");
+      return;
+    }
+
     const hostName = hostNameInput.value.trim() || currentUser.name || "Host Player";
     currentUser.name = hostName;
     const subject = document.getElementById("mp-subject-select").value;
@@ -129,21 +145,46 @@
 
     const shuffled = [...filtered].sort(() => 0.5 - Math.random());
     const selectedQuestions = shuffled.slice(0, 5);
+    const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    if (socket && socket.connected) {
-      socket.emit("create_room", {
-        hostName,
-        subject,
-        difficulty,
-        questions: selectedQuestions,
-        userId: currentUser.id
+    const newRoom = {
+      code: roomCode,
+      hostId: currentUser.id,
+      subject: subject,
+      difficulty: difficulty,
+      status: "LOBBY",
+      currentQuestionIndex: 0,
+      timerSeconds: 180,
+      questions: selectedQuestions,
+      players: [
+        {
+          id: currentUser.id,
+          name: hostName,
+          isHost: true,
+          score: 0,
+          answers: {}
+        }
+      ],
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    db.collection("multiplayer_rooms").doc(roomCode).set(newRoom)
+      .then(() => {
+        listenToRoom(roomCode);
+      })
+      .catch((err) => {
+        alert("Error creating room: " + err.message);
       });
-    } else {
-      alert("Connecting to server... Please try again in a moment.");
-    }
   }
 
+  // Join Room Function (Firestore)
   function joinRoom() {
+    const db = getDB();
+    if (!db) {
+      alert("Database is initializing. Please try again.");
+      return;
+    }
+
     const code = roomCodeInput.value.trim().toUpperCase();
     const playerName = playerNameInput.value.trim() || currentUser.name || "Player";
     currentUser.name = playerName;
@@ -153,30 +194,66 @@
       return;
     }
 
-    if (socket && socket.connected) {
-      socket.emit("join_room", {
-        code,
-        playerName,
-        userId: currentUser.id
+    const roomRef = db.collection("multiplayer_rooms").doc(code);
+    roomRef.get().then((doc) => {
+      if (!doc.exists) {
+        alert("Room code not found!");
+        return;
+      }
+      const data = doc.data();
+      if (data.status !== "LOBBY") {
+        alert("This game has already started or finished.");
+        return;
+      }
+
+      const players = data.players || [];
+      const alreadyIn = players.find(p => p.id === currentUser.id);
+
+      if (!alreadyIn) {
+        players.push({
+          id: currentUser.id,
+          name: playerName,
+          isHost: false,
+          score: 0,
+          answers: {}
+        });
+      }
+
+      roomRef.update({ players: players }).then(() => {
+        listenToRoom(code);
       });
-    } else {
-      alert("Connecting to server... Please try again in a moment.");
-    }
+    }).catch((err) => {
+      alert("Error joining room: " + err.message);
+    });
   }
 
   function leaveRoom() {
     if (!roomState) return;
-    if (socket && socket.connected) {
-      socket.emit("leave_room", { code: roomState.code, userId: currentUser.id });
+    const db = getDB();
+    if (roomUnsubscribe) roomUnsubscribe();
+
+    if (db && roomState.code) {
+      const roomRef = db.collection("multiplayer_rooms").doc(roomState.code);
+      const updatedPlayers = roomState.players.filter(p => p.id !== currentUser.id);
+      
+      if (updatedPlayers.length === 0) {
+        roomRef.delete();
+      } else {
+        roomRef.update({ players: updatedPlayers });
+      }
     }
+
     roomState = null;
     updateUIPanels();
   }
 
   function startGame() {
     if (!roomState) return;
-    if (socket && socket.connected) {
-      socket.emit("start_game", { code: roomState.code, userId: currentUser.id });
+    const db = getDB();
+    if (db) {
+      db.collection("multiplayer_rooms").doc(roomState.code).update({
+        status: "IN_GAME"
+      });
     }
   }
 
@@ -239,8 +316,7 @@
   function renderGame() {
     gameRoomCode.textContent = roomState.code;
 
-    // Timer display from server roomState.timerSeconds
-    const secs = roomState.timerSeconds || 0;
+    const secs = roomState.timerSeconds || 180;
     const minsStr = String(Math.floor(secs / 60)).padStart(2, "0");
     const secsStr = String(secs % 60).padStart(2, "0");
     mpTimerDisplay.textContent = `${minsStr}:${secsStr}`;
@@ -283,17 +359,10 @@
       const radio = document.createElement("input");
       radio.type = "radio";
       radio.name = "mp-option";
-      radio.checked = me && me.answers[currentQIndex] === optIdx;
+      radio.checked = me && me.answers && me.answers[currentQIndex] === optIdx;
       
       radio.onclick = () => {
-        if (socket && socket.connected) {
-          socket.emit("select_answer", {
-            code: roomState.code,
-            userId: currentUser.id,
-            questionIndex: currentQIndex,
-            answerIndex: optIdx
-          });
-        }
+        selectAnswer(currentQIndex, optIdx, currentQuestion.correctAnswer);
       };
 
       if (radio.checked) label.classList.add("selected");
@@ -312,14 +381,39 @@
     } else {
       mpSubmitBtn.textContent = "Next Question ➔";
       mpSubmitBtn.onclick = () => {
-        if (socket && socket.connected) {
-          socket.emit("change_question", {
-            code: roomState.code,
-            questionIndex: currentQIndex + 1
+        const db = getDB();
+        if (db) {
+          db.collection("multiplayer_rooms").doc(roomState.code).update({
+            currentQuestionIndex: currentQIndex + 1
           });
         }
       };
     }
+  }
+
+  function selectAnswer(qIndex, answerIdx, correctIdx) {
+    const db = getDB();
+    if (!db || !roomState) return;
+
+    const updatedPlayers = roomState.players.map((p) => {
+      if (p.id === currentUser.id) {
+        p.answers = p.answers || {};
+        p.answers[qIndex] = answerIdx;
+        
+        let score = 0;
+        roomState.questions.forEach((q, idx) => {
+          if (p.answers[idx] === q.correctAnswer) {
+            score++;
+          }
+        });
+        p.score = score;
+      }
+      return p;
+    });
+
+    db.collection("multiplayer_rooms").doc(roomState.code).update({
+      players: updatedPlayers
+    });
   }
 
   function renderLiveScoreboard() {
@@ -336,8 +430,11 @@
   }
 
   function finishGame() {
-    if (socket && socket.connected) {
-      socket.emit("finish_game", { code: roomState.code });
+    const db = getDB();
+    if (db && roomState) {
+      db.collection("multiplayer_rooms").doc(roomState.code).update({
+        status: "FINISHED"
+      });
     }
   }
 
