@@ -3,7 +3,7 @@
   const loginMessage = document.getElementById("login-message");
   const loginButton = loginForm ? loginForm.querySelector('button[type="submit"]') : null;
 
-  if (window.AuthManager && window.AuthManager.isAuthenticated()) {
+  if (window.AuthManager && typeof window.AuthManager.isAuthenticated === "function" && window.AuthManager.isAuthenticated()) {
     window.location.href = "index.html";
   }
 
@@ -20,42 +20,21 @@
     loginButton.textContent = isLoading ? "Signing in..." : "Login";
   }
 
-  // JWT Token (Google Login) Decode કરવા માટે
-  function parseJwt(token) {
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
-      return JSON.parse(jsonPayload);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // બ્રાઉઝર અને AuthManager સેશન કમ્પ્લીટ કરવા માટેનું હેલ્પર ફંકશન
-  function saveSessionFallback(userObj) {
-    const str = JSON.stringify(userObj);
-    localStorage.setItem("auth_user", str);
-    localStorage.setItem("currentUser", str);
-    localStorage.setItem("user", str);
-    localStorage.setItem("quiz_user", str);
-    localStorage.setItem("quiz_user_session", str);
-    localStorage.setItem("quiz_logged_in", "true");
-    localStorage.setItem("isAuthenticated", "true");
-  }
-
-  // Firestore ડેટા સેવ કરીને index.html પર મોકલવાનું ફંકશન
-  function syncAndRedirect(docId, data) {
-    const cleanId = String(docId).replace(/[^a-zA-Z0-9]/g, "_");
+  // Firestore ડેટા સેવ કરીને રીડાયરેક્ટ કરવાનું ફંકશન
+  function syncFirestoreAndRedirect(docId, userData) {
+    const cleanId = String(docId || "user_" + Date.now()).replace(/[^a-zA-Z0-9]/g, "_");
     if (window.db) {
       window.db.collection("users").doc(cleanId).set({
-        ...data,
+        ...userData,
         lastLogin: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true })
-      .then(() => { window.location.href = "index.html"; })
-      .catch(() => { window.location.href = "index.html"; });
+      .then(() => {
+        window.location.href = "index.html";
+      })
+      .catch((err) => {
+        console.error("Firestore sync error:", err);
+        window.location.href = "index.html";
+      });
     } else {
       window.location.href = "index.html";
     }
@@ -93,8 +72,8 @@
         return;
       }
 
-      saveSessionFallback({ username: identifier, email: identifier, loginType: "Email" });
-      syncAndRedirect(identifier, { identifier: identifier, loginType: "Email" });
+      setLoginMessage("Login successful. Syncing to database...", false);
+      syncFirestoreAndRedirect(identifier, { identifier: identifier, loginType: "Email" });
     });
   }
 
@@ -149,21 +128,28 @@
   if (googleForm) {
     googleForm.addEventListener("submit", (e) => {
       e.preventDefault();
-      
+      if (googleMessage) {
+        googleMessage.textContent = "";
+        googleMessage.style.color = "#dc2626";
+      }
+
       const fullNameInput = document.getElementById("google-fullname");
       const emailInput = document.getElementById("google-email");
       const passwordInput = document.getElementById("google-password");
 
-      const fullName = (fullNameInput && fullNameInput.value.trim()) ? fullNameInput.value.trim() : "Google User";
-      const email = (emailInput && emailInput.value.trim()) ? emailInput.value.trim() : "google_user@gmail.com";
-      const password = (passwordInput && passwordInput.value.trim()) ? passwordInput.value.trim() : "";
+      const fullName = fullNameInput ? fullNameInput.value.trim() : "";
+      const email = emailInput ? emailInput.value.trim() : "";
+      const password = passwordInput ? passwordInput.value.trim() : "";
 
-      if (window.AuthManager && typeof window.AuthManager.googleLogin === "function") {
-        window.AuthManager.googleLogin({ fullName, email, password });
+      if (window.AuthManager) {
+        const res = window.AuthManager.googleLogin({ fullName, email, password });
+        if (res && res.ok) {
+          syncFirestoreAndRedirect(email, { fullName: fullName, email: email, loginType: "Google Form" });
+        } else if (googleMessage) {
+          googleMessage.style.color = "#dc2626";
+          googleMessage.textContent = (res && res.message) ? res.message : "Failed to sign in with Google.";
+        }
       }
-
-      saveSessionFallback({ username: fullName, email: email, loginType: "Google Form" });
-      syncAndRedirect(email, { fullName: fullName, email: email, loginType: "Google Form" });
     });
   }
 
@@ -171,17 +157,21 @@
   // ૩. OFFICIAL GOOGLE ONE-TAP LOGIN
   // ----------------------------------------------------
   function handleCredentialResponse(response) {
-    if (response && response.credential) {
-      if (window.AuthManager && typeof window.AuthManager.googleLoginWithCredential === "function") {
-        window.AuthManager.googleLoginWithCredential(response.credential);
+    if (response && response.credential && window.AuthManager) {
+      const res = window.AuthManager.googleLoginWithCredential(response.credential);
+      if (res && res.ok) {
+        const currUser = (typeof window.AuthManager.getCurrentUser === "function") ? window.AuthManager.getCurrentUser() : {};
+        const email = currUser.email || "google_user_" + Date.now();
+        syncFirestoreAndRedirect(email, {
+          fullName: currUser.fullName || currUser.username || "Google User",
+          email: currUser.email || "",
+          loginType: "Google OAuth"
+        });
+      } else if (googleMessage) {
+        googleMessage.style.color = "#dc2626";
+        googleMessage.textContent = (res && res.message) ? res.message : "Google authentication failed.";
+        if (googleModal) googleModal.classList.remove("hidden");
       }
-
-      const decoded = parseJwt(response.credential);
-      const fullName = decoded ? (decoded.name || decoded.given_name) : "Google User";
-      const email = decoded ? decoded.email : "google_oauth@gmail.com";
-
-      saveSessionFallback({ username: fullName, email: email, loginType: "Google OAuth" });
-      syncAndRedirect(email, { fullName: fullName, email: email, loginType: "Google OAuth" });
     }
   }
   window.handleCredentialResponse = handleCredentialResponse;
@@ -192,12 +182,12 @@
   const guestBtn = document.getElementById("guest-login-btn");
   if (guestBtn) {
     guestBtn.addEventListener("click", () => {
-      if (window.AuthManager && typeof window.AuthManager.guestLogin === "function") {
-        window.AuthManager.guestLogin();
+      if (window.AuthManager) {
+        const res = window.AuthManager.guestLogin();
+        if (res && res.ok) {
+          syncFirestoreAndRedirect("guest_" + Date.now(), { username: "Guest User", loginType: "Guest" });
+        }
       }
-
-      saveSessionFallback({ username: "Guest User", email: "guest@quiz.com", loginType: "Guest" });
-      syncAndRedirect("guest_" + Date.now(), { username: "Guest User", loginType: "Guest" });
     });
   }
 
