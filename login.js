@@ -20,7 +20,7 @@
     loginButton.textContent = isLoading ? "Signing in..." : "Login";
   }
 
-  // Google Token (JWT) Decode કરવા માટેનું ફંકશન
+  // JWT Token (Google Login) Decode કરવા માટે
   function parseJwt(token) {
     try {
       const base64Url = token.split('.')[1];
@@ -34,14 +34,30 @@
     }
   }
 
-  // LocalStorage માં બ્રાઉઝર સેશન સેવ કરવાનું હેલ્પર
-  function setSessionData(userObj) {
-    try {
-      localStorage.setItem("quiz_user_session", JSON.stringify(userObj));
-      localStorage.setItem("quiz_logged_in", "true");
-      localStorage.setItem("quiz_auth_user", JSON.stringify(userObj));
-    } catch (e) {
-      console.error("Session save error:", e);
+  // બ્રાઉઝર અને AuthManager સેશન કમ્પ્લીટ કરવા માટેનું હેલ્પર ફંકશન
+  function saveSessionFallback(userObj) {
+    const str = JSON.stringify(userObj);
+    localStorage.setItem("auth_user", str);
+    localStorage.setItem("currentUser", str);
+    localStorage.setItem("user", str);
+    localStorage.setItem("quiz_user", str);
+    localStorage.setItem("quiz_user_session", str);
+    localStorage.setItem("quiz_logged_in", "true");
+    localStorage.setItem("isAuthenticated", "true");
+  }
+
+  // Firestore ડેટા સેવ કરીને index.html પર મોકલવાનું ફંકશન
+  function syncAndRedirect(docId, data) {
+    const cleanId = String(docId).replace(/[^a-zA-Z0-9]/g, "_");
+    if (window.db) {
+      window.db.collection("users").doc(cleanId).set({
+        ...data,
+        lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true })
+      .then(() => { window.location.href = "index.html"; })
+      .catch(() => { window.location.href = "index.html"; });
+    } else {
+      window.location.href = "index.html";
     }
   }
 
@@ -77,25 +93,8 @@
         return;
       }
 
-      setLoginMessage("Login successful. Syncing to database...", false);
-
-      const userDocId = identifier.replace(/[^a-zA-Z0-9]/g, "_");
-      setSessionData({ username: identifier, email: identifier, loginType: "Email" });
-
-      if (window.db) {
-        window.db.collection("users").doc(userDocId).set({
-          identifier: identifier,
-          loginType: "Email",
-          lastLogin: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true }).then(() => {
-          window.location.href = "index.html";
-        }).catch((err) => {
-          console.error("Firestore Error:", err);
-          window.location.href = "index.html";
-        });
-      } else {
-        window.location.href = "index.html";
-      }
+      saveSessionFallback({ username: identifier, email: identifier, loginType: "Email" });
+      syncAndRedirect(identifier, { identifier: identifier, loginType: "Email" });
     });
   }
 
@@ -145,7 +144,7 @@
   }
 
   // ----------------------------------------------------
-  // ૨. GOOGLE FORM LOGIN (Verify & Enter Quiz)
+  // ૨. GOOGLE FORM LOGIN
   // ----------------------------------------------------
   if (googleForm) {
     googleForm.addEventListener("submit", (e) => {
@@ -153,28 +152,18 @@
       
       const fullNameInput = document.getElementById("google-fullname");
       const emailInput = document.getElementById("google-email");
+      const passwordInput = document.getElementById("google-password");
 
       const fullName = (fullNameInput && fullNameInput.value.trim()) ? fullNameInput.value.trim() : "Google User";
       const email = (emailInput && emailInput.value.trim()) ? emailInput.value.trim() : "google_user@gmail.com";
+      const password = (passwordInput && passwordInput.value.trim()) ? passwordInput.value.trim() : "";
 
-      const userSession = { username: fullName, email: email, loginType: "Google Form" };
-      setSessionData(userSession);
-
-      if (window.db) {
-        const googleDocId = email.replace(/[^a-zA-Z0-9]/g, "_");
-        window.db.collection("users").doc(googleDocId).set({
-          fullName: fullName,
-          email: email,
-          loginType: "Google Form",
-          lastLogin: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true }).then(() => {
-          window.location.href = "index.html";
-        }).catch(() => {
-          window.location.href = "index.html";
-        });
-      } else {
-        window.location.href = "index.html";
+      if (window.AuthManager && typeof window.AuthManager.googleLogin === "function") {
+        window.AuthManager.googleLogin({ fullName, email, password });
       }
+
+      saveSessionFallback({ username: fullName, email: email, loginType: "Google Form" });
+      syncAndRedirect(email, { fullName: fullName, email: email, loginType: "Google Form" });
     });
   }
 
@@ -183,28 +172,16 @@
   // ----------------------------------------------------
   function handleCredentialResponse(response) {
     if (response && response.credential) {
+      if (window.AuthManager && typeof window.AuthManager.googleLoginWithCredential === "function") {
+        window.AuthManager.googleLoginWithCredential(response.credential);
+      }
+
       const decoded = parseJwt(response.credential);
       const fullName = decoded ? (decoded.name || decoded.given_name) : "Google User";
       const email = decoded ? decoded.email : "google_oauth@gmail.com";
 
-      const googleUser = { username: fullName, email: email, loginType: "Google OAuth" };
-      setSessionData(googleUser);
-
-      if (window.db) {
-        const googleDocId = email.replace(/[^a-zA-Z0-9]/g, "_");
-        window.db.collection("users").doc(googleDocId).set({
-          fullName: fullName,
-          email: email,
-          loginType: "Google OAuth",
-          lastLogin: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true }).then(() => {
-          window.location.href = "index.html";
-        }).catch(() => {
-          window.location.href = "index.html";
-        });
-      } else {
-        window.location.href = "index.html";
-      }
+      saveSessionFallback({ username: fullName, email: email, loginType: "Google OAuth" });
+      syncAndRedirect(email, { fullName: fullName, email: email, loginType: "Google OAuth" });
     }
   }
   window.handleCredentialResponse = handleCredentialResponse;
@@ -215,24 +192,12 @@
   const guestBtn = document.getElementById("guest-login-btn");
   if (guestBtn) {
     guestBtn.addEventListener("click", () => {
-      const guestSession = { username: "Guest User", email: "guest@quiz.com", loginType: "Guest" };
-      setSessionData(guestSession);
-
-      if (window.db) {
-        const guestId = "guest_" + Date.now();
-        window.db.collection("users").doc(guestId).set({
-          username: "Guest User",
-          loginType: "Guest",
-          lastLogin: firebase.firestore.FieldValue.serverTimestamp()
-        }).then(() => {
-          window.location.href = "index.html";
-        }).catch((err) => {
-          console.error("Firestore Error:", err);
-          window.location.href = "index.html";
-        });
-      } else {
-        window.location.href = "index.html";
+      if (window.AuthManager && typeof window.AuthManager.guestLogin === "function") {
+        window.AuthManager.guestLogin();
       }
+
+      saveSessionFallback({ username: "Guest User", email: "guest@quiz.com", loginType: "Guest" });
+      syncAndRedirect("guest_" + Date.now(), { username: "Guest User", loginType: "Guest" });
     });
   }
 
@@ -261,7 +226,7 @@
       const newPass = document.getElementById("reset-new-password").value;
 
       if (!window.AuthManager) return;
-      const res = window.AuthManager.resetPassword(email, newPass);
+      window.AuthManager.resetPassword(email, newPass);
 
       if (resetModal) resetModal.classList.add("hidden");
     });
