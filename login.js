@@ -20,21 +20,29 @@
     loginButton.textContent = isLoading ? "Signing in..." : "Login";
   }
 
-  // Firestore ડેટા સેવ કરીને રીડાયરેક્ટ કરવાનું ફંકશન
-  function syncFirestoreAndRedirect(docId, userData) {
-    const cleanId = String(docId || "user_" + Date.now()).replace(/[^a-zA-Z0-9]/g, "_");
+  // auth.js ની જ સાચી Key માં Session સેવ કરવાનું ફંકશન
+  function forceDirectSession(userObj) {
+    const sessionData = {
+      fullName: userObj.fullName || userObj.username || "User",
+      username: userObj.username || "user",
+      email: userObj.email || "",
+      avatarUrl: userObj.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(userObj.fullName || "User")}&background=0D5C4E&color=fff&bold=true`,
+      bio: userObj.bio || "Quiz Player",
+      isGuest: Boolean(userObj.isGuest),
+      isGoogle: Boolean(userObj.isGoogle),
+      loginAt: new Date().toISOString()
+    };
+
+    // auth.js વાપરે છે તે બે મુખ્ય જગ્યાએ ડેટા મૂકી દો
+    localStorage.setItem("ce_quiz_session_v2", JSON.stringify(sessionData));
+    sessionStorage.setItem("ce_quiz_session_v2", JSON.stringify(sessionData));
+
+    // Firestore માં ડેટા સેવ કરીને રીડાયરેક્ટ કરો
     if (window.db) {
-      window.db.collection("users").doc(cleanId).set({
-        ...userData,
-        lastLogin: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true })
-      .then(() => {
-        window.location.href = "index.html";
-      })
-      .catch((err) => {
-        console.error("Firestore sync error:", err);
-        window.location.href = "index.html";
-      });
+      const docId = (sessionData.username || "user_" + Date.now()).replace(/[^a-zA-Z0-9]/g, "_");
+      window.db.collection("users").doc(docId).set(sessionData, { merge: true })
+        .then(() => { window.location.href = "index.html"; })
+        .catch(() => { window.location.href = "index.html"; });
     } else {
       window.location.href = "index.html";
     }
@@ -72,8 +80,7 @@
         return;
       }
 
-      setLoginMessage("Login successful. Syncing to database...", false);
-      syncFirestoreAndRedirect(identifier, { identifier: identifier, loginType: "Email" });
+      window.location.href = "index.html";
     });
   }
 
@@ -123,71 +130,74 @@
   }
 
   // ----------------------------------------------------
-  // ૨. GOOGLE FORM LOGIN
+  // ૨. GOOGLE FORM LOGIN (Direct Session Force)
   // ----------------------------------------------------
   if (googleForm) {
     googleForm.addEventListener("submit", (e) => {
       e.preventDefault();
-      if (googleMessage) {
-        googleMessage.textContent = "";
-        googleMessage.style.color = "#dc2626";
-      }
 
       const fullNameInput = document.getElementById("google-fullname");
       const emailInput = document.getElementById("google-email");
-      const passwordInput = document.getElementById("google-password");
 
-      const fullName = fullNameInput ? fullNameInput.value.trim() : "";
-      const email = emailInput ? emailInput.value.trim() : "";
-      const password = passwordInput ? passwordInput.value.trim() : "";
+      const fullName = (fullNameInput && fullNameInput.value.trim()) ? fullNameInput.value.trim() : "Google User";
+      const email = (emailInput && emailInput.value.trim()) ? emailInput.value.trim() : "google_user@gmail.com";
+      const username = email.split("@")[0].replace(/[^a-zA-Z0-9]/g, "_");
 
-      if (window.AuthManager) {
-        const res = window.AuthManager.googleLogin({ fullName, email, password });
-        if (res && res.ok) {
-          syncFirestoreAndRedirect(email, { fullName: fullName, email: email, loginType: "Google Form" });
-        } else if (googleMessage) {
-          googleMessage.style.color = "#dc2626";
-          googleMessage.textContent = (res && res.message) ? res.message : "Failed to sign in with Google.";
-        }
-      }
+      forceDirectSession({
+        fullName: fullName,
+        username: username,
+        email: email,
+        isGoogle: true
+      });
     });
   }
 
   // ----------------------------------------------------
   // ૩. OFFICIAL GOOGLE ONE-TAP LOGIN
   // ----------------------------------------------------
+  function parseJwt(token) {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+      return JSON.parse(jsonPayload);
+    } catch (e) {
+      return null;
+    }
+  }
+
   function handleCredentialResponse(response) {
-    if (response && response.credential && window.AuthManager) {
-      const res = window.AuthManager.googleLoginWithCredential(response.credential);
-      if (res && res.ok) {
-        const currUser = (typeof window.AuthManager.getCurrentUser === "function") ? window.AuthManager.getCurrentUser() : {};
-        const email = currUser.email || "google_user_" + Date.now();
-        syncFirestoreAndRedirect(email, {
-          fullName: currUser.fullName || currUser.username || "Google User",
-          email: currUser.email || "",
-          loginType: "Google OAuth"
-        });
-      } else if (googleMessage) {
-        googleMessage.style.color = "#dc2626";
-        googleMessage.textContent = (res && res.message) ? res.message : "Google authentication failed.";
-        if (googleModal) googleModal.classList.remove("hidden");
-      }
+    if (response && response.credential) {
+      const decoded = parseJwt(response.credential);
+      const fullName = decoded ? (decoded.name || decoded.given_name) : "Google User";
+      const email = decoded ? decoded.email : "google_oauth@gmail.com";
+      const username = email.split("@")[0].replace(/[^a-zA-Z0-9]/g, "_");
+      const avatarUrl = decoded ? decoded.picture : "";
+
+      forceDirectSession({
+        fullName: fullName,
+        username: username,
+        email: email,
+        avatarUrl: avatarUrl,
+        isGoogle: true
+      });
     }
   }
   window.handleCredentialResponse = handleCredentialResponse;
 
   // ----------------------------------------------------
-  // ૪. GUEST LOGIN
+  // ૪. GUEST LOGIN (Direct Session Force)
   // ----------------------------------------------------
   const guestBtn = document.getElementById("guest-login-btn");
   if (guestBtn) {
     guestBtn.addEventListener("click", () => {
-      if (window.AuthManager) {
-        const res = window.AuthManager.guestLogin();
-        if (res && res.ok) {
-          syncFirestoreAndRedirect("guest_" + Date.now(), { username: "Guest User", loginType: "Guest" });
-        }
-      }
+      const guestId = Math.floor(1000 + Math.random() * 9000);
+      forceDirectSession({
+        fullName: `Guest Player ${guestId}`,
+        username: `guest_${guestId}`,
+        email: `guest_${guestId}@quiz.local`,
+        isGuest: true
+      });
     });
   }
 
