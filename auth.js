@@ -87,6 +87,7 @@
       "auth/invalid-credential": "Incorrect email or password.",
       "auth/email-already-in-use": "An account already exists for this email.",
       "auth/weak-password": "Use a password with at least 6 characters.",
+      "auth/operation-not-allowed": "Email/password sign-in is not enabled for this project yet.",
       "auth/popup-closed-by-user": "Google sign-in was cancelled.",
       "auth/too-many-requests": "Too many attempts. Please try again later."
     };
@@ -102,7 +103,7 @@
   async function loginUser(email, password, rememberUser) {
     const cleanEmail = normalizeEmail(email);
     if (!isValidEmail(cleanEmail) || !password) {
-      return { ok: false, message: "Enter your Firebase email and password." };
+      return { ok: false, message: "Enter the email used when you created your Quiz Portal account, for example name@gmail.com." };
     }
 
     try {
@@ -126,14 +127,16 @@
     }
 
     try {
-      await setFirebasePersistence(false);
+      await setFirebasePersistence(true);
       const credential = await window.auth.createUserWithEmailAndPassword(email, password);
       await credential.user.updateProfile({ displayName: fullName });
-      await credential.user.sendEmailVerification();
-      await window.auth.signOut();
+      // Verification is useful but must not block a new student's first login.
+      credential.user.sendEmailVerification().catch(() => {});
+      const session = await syncFirebaseUser(credential.user, true, { fullName, username });
       return {
         ok: true,
-        message: "Account created. Check your email to verify it, then log in."
+        user: session,
+        message: "Account created successfully. You are now signed in."
       };
     } catch (error) {
       return { ok: false, message: firebaseErrorMessage(error) };

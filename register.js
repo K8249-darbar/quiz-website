@@ -39,7 +39,9 @@
 
       setLoading(registerButton, false, "Register");
       setMessage(result.message, !result.ok);
-      if (result.ok) registerForm.reset();
+      if (result.ok) {
+        window.location.href = "index.html";
+      }
     });
   }
 
