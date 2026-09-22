@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Certificates | Computer Engineering Quiz Game with Timer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-orb orb-1"></div>
+    <div class="bg-orb orb-2"></div>
+    <div class="bg-grid"></div>
+
+    <main class="app-shell">
+      <header class="hero certificates-hero no-print">
+        <div class="hero-head">
+          <div>
+            <p class="hero-kicker">Verified Quiz Record</p>
+            <h1>My Certificates</h1>
+            <p class="hero-subtext">Professional completion certificates for your submitted timed quizzes.</p>
+          </div>
+          <div class="hero-user-controls">
+            <span id="current-user" class="user-chip"></span>
+            <a href="index.html" class="btn btn-secondary">Back to Quiz</a>
+            <a href="achievements.html" class="btn btn-secondary">Achievements</a>
+            <a href="history.html" class="btn btn-secondary">History</a>
+            <button id="logout-btn" class="btn btn-secondary" type="button">Logout</button>
+          </div>
+        </div>
+      </header>
+
+      <section id="certificate-empty" class="panel certificate-empty no-print" hidden>
+        <h2>No certificate yet</h2>
+        <p>Complete and submit a quiz. A Certificate of Completion will be generated automatically.</p>
+        <a href="index.html" class="btn btn-primary">Start a Quiz</a>
+      </section>
+
+      <section id="certificate-workspace" class="certificate-workspace">
+        <aside class="certificate-list-panel no-print" aria-label="Certificate list">
+          <div class="panel-head">
+            <h2>Your quiz certificates</h2>
+            <p>Select any completed quiz to view its certificate.</p>
+          </div>
+          <div id="certificate-list" class="certificate-list"></div>
+        </aside>
+
+        <section id="certificate-sheet" class="certificate-sheet" aria-label="Certificate of Completion">
+          <div class="certificate-frame">
+            <div class="certificate-topline">
+              <span>COMPUTER ENGINEERING QUIZ GAME</span>
+              <span>OFFICIAL COMPLETION RECORD</span>
+            </div>
+            <div class="certificate-seal" aria-hidden="true">CE<br /><small>QUIZ</small></div>
+            <p class="certificate-label">Certificate of Completion</p>
+            <p class="certificate-intro">This certificate is proudly presented to</p>
+            <h2 id="certificate-recipient" class="certificate-recipient">Quiz Participant</h2>
+            <p class="certificate-statement">for successfully completing a timed Computer Engineering quiz assessment.</p>
+            <div class="certificate-scorebox">
+              <div><span>Quiz score</span><strong id="certificate-score">0 / 0 (0%)</strong></div>
+              <div><span>Subject</span><strong id="certificate-subject">Computer Engineering</strong></div>
+              <div><span>Time used</span><strong id="certificate-time">00:00</strong></div>
+            </div>
+            <div class="certificate-footer">
+              <div><span class="certificate-line"></span><strong id="certificate-date">Issue date</strong><small>Date of completion</small></div>
+              <div class="certificate-id-block"><span class="certificate-line"></span><strong id="certificate-id">CEQ-000000</strong><small>Certificate ID</small></div>
+              <div><span class="certificate-line"></span><strong>Quiz Portal</strong><small>Assessment platform</small></div>
+            </div>
+          </div>
+        </section>
+
+        <div class="certificate-actions no-print">
+          <button id="download-certificate-btn" class="btn btn-primary" type="button">⬇️ Download / Save as PDF</button>
+          <p>Use the print dialog and choose <strong>Save as PDF</strong> for a professional certificate file.</p>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/firebase@10.8.0/firebase-app-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/firebase@10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/firebase@10.8.0/firebase-firestore-compat.js"></script>
+    <script src="auth.js?v=20260922-certificate"></script>
+    <script src="certificates.js?v=20260922-certificate"></script>
+  </body>
+</html>

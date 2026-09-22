@@ -954,8 +954,13 @@ function calculateResult(reason) {
   }
   const percentage = totalQuestions ? (netScore / totalQuestions) * 100 : 0;
   const timeUsedSeconds = Math.max(0, state.totalSeconds - state.timerSeconds);
+  const certificateId = `CEQ-${Date.now().toString(36).toUpperCase()}-${Math.random()
+    .toString(36)
+    .slice(2, 7)
+    .toUpperCase()}`;
 
   return {
+    certificateId,
     ownerId: authManager?.getCurrentUserKey?.() || "anonymous",
     ownerEmail: getCurrentSession()?.email || "",
     ownerName: getCurrentSession()?.fullName || getCurrentSession()?.username || "Guest",
@@ -997,6 +1002,7 @@ function renderResultSummary(result) {
       <div class="stat-box"><h3>Unanswered</h3><p>${result.unanswered}</p></div>
       <div class="stat-box"><h3>Time Used</h3><p>${formatTime(result.timeUsedSeconds)}</p></div>
     </div>
+    <a class="btn btn-primary certificate-result-link" href="certificate.html?certificate=${encodeURIComponent(result.certificateId)}">📜 View Certificate of Completion</a>
   `;
 }
 
