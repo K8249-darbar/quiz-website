@@ -61,6 +61,18 @@ const ACHIEVEMENTS = [
   }
 ];
 
+const ACHIEVEMENT_MEDALS = {
+  "first-quiz": { icon: "🥉", label: "Bronze Medal", tier: "bronze" },
+  "quiz-beginner": { icon: "🥈", label: "Silver Medal", tier: "silver" },
+  "quiz-expert": { icon: "🥇", label: "Gold Medal", tier: "gold" },
+  "perfect-score": { icon: "🥇", label: "Gold Medal", tier: "gold" },
+  "questions-completed": { icon: "🥇", label: "Gold Medal", tier: "gold" },
+  "quizzes-completed": { icon: "🥇", label: "Gold Medal", tier: "gold" },
+  "correct-answers": { icon: "🥇", label: "Gold Medal", tier: "gold" },
+  "fast-thinker": { icon: "🥈", label: "Silver Medal", tier: "silver" },
+  "quiz-master": { icon: "🏆", label: "Master Trophy", tier: "master" }
+};
+
 const CERTIFICATE_REQUIRED_ACHIEVEMENT_IDS = ACHIEVEMENTS
   .filter((achievement) => achievement.id !== "quiz-master")
   .map((achievement) => achievement.id);
@@ -364,7 +376,9 @@ function renderAchievementsPage() {
     const title = document.createElement("h3");
     const description = document.createElement("p");
     const progress = document.createElement("p");
+    const medal = document.createElement("span");
     const status = document.createElement("span");
+    const medalReward = ACHIEVEMENT_MEDALS[achievement.id];
 
     card.className = `achievement-card ${isUnlocked ? "unlocked" : "locked"}`;
     icon.className = "achievement-icon";
@@ -373,9 +387,13 @@ function renderAchievementsPage() {
     description.textContent = achievement.description;
     progress.className = "achievement-progress";
     progress.textContent = getAchievementProgress(achievement, metrics, isUnlocked);
+    medal.className = `achievement-medal ${isUnlocked ? medalReward.tier : "locked"}`;
+    medal.textContent = isUnlocked
+      ? `${medalReward.icon} ${medalReward.label} earned`
+      : "🔒 Medal locked";
     status.className = "achievement-status";
     status.textContent = isUnlocked ? "Unlocked" : "Locked";
-    card.append(icon, title, description, progress, status);
+    card.append(icon, title, description, progress, medal, status);
     achievementGrid.appendChild(card);
   });
 }

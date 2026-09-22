@@ -898,6 +898,52 @@ select option {
   color: var(--brand-dark);
 }
 
+.achievement-medal {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  border-radius: 999px;
+}
+
+.achievement-medal.bronze,
+.badge-earned-list span.bronze {
+  color: #8a4b18;
+  background: #fff0e1;
+  border-color: #e5a26a;
+}
+
+.achievement-medal.silver,
+.badge-earned-list span.silver {
+  color: #455a70;
+  background: #eef3f7;
+  border-color: #aab9c8;
+}
+
+.achievement-medal.gold,
+.badge-earned-list span.gold {
+  color: #7a5510;
+  background: #fff7d8;
+  border-color: #dfb855;
+}
+
+.achievement-medal.master,
+.badge-earned-list span.master {
+  color: #ffffff;
+  background: #0d5c4e;
+  border-color: #0a4a3e;
+}
+
+.achievement-medal.locked {
+  color: var(--text-muted);
+  background: #f1f5f4;
+  border-color: #e0e8e5;
+}
+
 .achievement-status {
   width: fit-content;
   padding: 0.2rem 0.55rem;

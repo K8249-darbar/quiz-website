@@ -12,15 +12,15 @@ const DIFFICULTY_TIMER_SECONDS = {
 const authManager = window.AuthManager;
 
 const RESULT_BADGES = [
-  { id: "first-quiz", name: "First Quiz", icon: "🏁" },
-  { id: "quiz-beginner", name: "Quiz Beginner", icon: "🌱" },
-  { id: "quiz-expert", name: "Quiz Expert", icon: "🎯" },
-  { id: "perfect-score", name: "Perfect Score", icon: "💯" },
-  { id: "questions-completed", name: "100 Questions Completed", icon: "📚" },
-  { id: "quizzes-completed", name: "10 Quizzes Completed", icon: "🔟" },
-  { id: "correct-answers", name: "50 Correct Answers", icon: "✅" },
-  { id: "fast-thinker", name: "Fast Thinker", icon: "⚡" },
-  { id: "quiz-master", name: "Quiz Master", icon: "🏆" }
+  { id: "first-quiz", name: "First Quiz", icon: "🏁", medal: "🥉", medalLabel: "Bronze Medal", medalTier: "bronze" },
+  { id: "quiz-beginner", name: "Quiz Beginner", icon: "🌱", medal: "🥈", medalLabel: "Silver Medal", medalTier: "silver" },
+  { id: "quiz-expert", name: "Quiz Expert", icon: "🎯", medal: "🥇", medalLabel: "Gold Medal", medalTier: "gold" },
+  { id: "perfect-score", name: "Perfect Score", icon: "💯", medal: "🥇", medalLabel: "Gold Medal", medalTier: "gold" },
+  { id: "questions-completed", name: "100 Questions Completed", icon: "📚", medal: "🥇", medalLabel: "Gold Medal", medalTier: "gold" },
+  { id: "quizzes-completed", name: "10 Quizzes Completed", icon: "🔟", medal: "🥇", medalLabel: "Gold Medal", medalTier: "gold" },
+  { id: "correct-answers", name: "50 Correct Answers", icon: "✅", medal: "🥇", medalLabel: "Gold Medal", medalTier: "gold" },
+  { id: "fast-thinker", name: "Fast Thinker", icon: "⚡", medal: "🥈", medalLabel: "Silver Medal", medalTier: "silver" },
+  { id: "quiz-master", name: "Quiz Master", icon: "🏆", medal: "🏆", medalLabel: "Master Trophy", medalTier: "master" }
 ];
 
 if (!authManager || !authManager.isAuthenticated()) {
@@ -1111,7 +1111,7 @@ function renderResultSummary(result, newlyUnlockedBadges = []) {
       <section class="badge-earned-card" aria-live="polite">
         <p class="hero-kicker">Achievement Unlocked</p>
         <h3>🎉 You earned ${newlyUnlockedBadges.length === 1 ? "a new badge" : "new badges"}</h3>
-        <div class="badge-earned-list">${newlyUnlockedBadges.map((badge) => `<span>${badge.icon} ${badge.name}</span>`).join("")}</div>
+        <div class="badge-earned-list">${newlyUnlockedBadges.map((badge) => `<span class="${badge.medalTier}">${badge.medal} ${badge.medalLabel} · ${badge.name}</span>`).join("")}</div>
         <p>See your complete badge progress in Achievements.</p>
       </section>
     ` : ""}
