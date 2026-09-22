@@ -11,8 +11,8 @@
     <script src="https://cdn.jsdelivr.net/npm/firebase@10.8.0/firebase-app-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/firebase@10.8.0/firebase-auth-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/firebase@10.8.0/firebase-firestore-compat.js"></script>
-    <script src="auth.js?v=20260922-easy-login" defer></script>
-    <script src="login.js?v=20260922-easy-login" defer></script>
+    <script src="auth.js?v=20260922-username-login" defer></script>
+    <script src="login.js?v=20260922-username-login" defer></script>
   </head>
   <body class="login-page">
     <div class="scene-orb orb-a"></div>
@@ -25,12 +25,12 @@
         </div>
         <p class="auth-kicker">Secure Access</p>
         <h1>Welcome Back</h1>
-        <p class="auth-subtext">Sign in with your Quiz Portal email and password.</p>
+        <p class="auth-subtext">Sign in with your Quiz Portal username or email and password.</p>
 
         <form id="login-form" novalidate>
           <label>
-            Email address
-            <input type="email" id="identifier" name="identifier" autocomplete="email" placeholder="name@example.com" required />
+            Username or email address
+            <input type="text" id="identifier" name="identifier" autocomplete="username" placeholder="Username or name@example.com" required />
           </label>
           <label>
             Password

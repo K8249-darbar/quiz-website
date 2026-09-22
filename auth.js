@@ -1,5 +1,9 @@
 (() => {
   const AUTH_SESSION_KEY = "ce_quiz_session_v3";
+  // Accounts created by the older version of this site were kept only in this
+  // browser. Keep this key so those saved username/password logins still work.
+  const LEGACY_USERS_KEY = "ce_quiz_users_v2";
+  const USERNAME_ALIASES_KEY = "ce_quiz_username_aliases_v1";
   const ADMIN_EMAIL = "kunalkbariya@gmail.com";
   const firebaseConfig = {
     apiKey: "AIzaSyBepB2uuAPE1qYuQSmWJhnD9VciijoFNfU",
@@ -25,6 +29,14 @@
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
 
+  function normalizeUsername(username) {
+    return String(username || "").trim().toLowerCase();
+  }
+
+  function isValidUsername(username) {
+    return /^[a-zA-Z0-9._-]{3,24}$/.test(String(username || "").trim());
+  }
+
   function parseJson(value, fallback) {
     try {
       const parsed = JSON.parse(value);
@@ -41,6 +53,32 @@
     return session && typeof session === "object" ? session : null;
   }
 
+  function getLegacyUsers() {
+    const users = parseJson(localStorage.getItem(LEGACY_USERS_KEY), []);
+    return Array.isArray(users) ? users : [];
+  }
+
+  function getUsernameAliases() {
+    const aliases = parseJson(localStorage.getItem(USERNAME_ALIASES_KEY), {});
+    return aliases && typeof aliases === "object" && !Array.isArray(aliases) ? aliases : {};
+  }
+
+  function rememberUsernameAlias(user) {
+    const username = normalizeUsername(user?.username);
+    const email = normalizeEmail(user?.email);
+    if (!isValidUsername(username) || !isValidEmail(email)) return;
+    const aliases = getUsernameAliases();
+    aliases[username] = { email, fullName: user.fullName || username };
+    localStorage.setItem(USERNAME_ALIASES_KEY, JSON.stringify(aliases));
+  }
+
+  function findLegacyUser(identifier) {
+    const value = String(identifier || "").trim().toLowerCase();
+    return getLegacyUsers().find((user) => (
+      normalizeUsername(user?.username) === value || normalizeEmail(user?.email) === value
+    ));
+  }
+
   function getRole(user) {
     if (!user || user.isGuest) return "student";
     return normalizeEmail(user.email) === ADMIN_EMAIL ? "admin" : "student";
@@ -50,8 +88,11 @@
     const email = normalizeEmail(user.email);
     const username = profile.username || email.split("@")[0] || "user";
     const fullName = profile.fullName || user.displayName || username;
+    const fallbackUid = profile.isGuest
+      ? `guest_${Date.now()}`
+      : `local_${normalizeUsername(username) || normalizeEmail(email) || "user"}`;
     return {
-      uid: user.uid || `guest_${Date.now()}`,
+      uid: user.uid || fallbackUid,
       fullName,
       username,
       email,
@@ -97,13 +138,39 @@
   async function syncFirebaseUser(user, rememberUser, profile = {}) {
     const session = createSession(user, profile);
     saveSession(session, rememberUser);
+    rememberUsernameAlias(session);
     return session;
   }
 
-  async function loginUser(email, password, rememberUser) {
-    const cleanEmail = normalizeEmail(email);
-    if (!isValidEmail(cleanEmail) || !password) {
-      return { ok: false, message: "Enter the email used when you created your Quiz Portal account, for example name@gmail.com." };
+  async function loginLegacyUser(user, password, rememberUser) {
+    if (!user || String(user.password || "") !== String(password || "")) return null;
+    await window.auth?.signOut().catch(() => {});
+    const session = createSession(user, {
+      fullName: user.fullName,
+      username: user.username,
+      avatarUrl: user.avatarUrl,
+      bio: user.bio
+    });
+    saveSession(session, rememberUser);
+    return session;
+  }
+
+  async function loginUser(identifier, password, rememberUser) {
+    const cleanIdentifier = String(identifier || "").trim();
+    if (!cleanIdentifier || !password) {
+      return { ok: false, message: "Enter your username or email and password." };
+    }
+
+    const legacyUser = findLegacyUser(cleanIdentifier);
+    const alias = getUsernameAliases()[normalizeUsername(cleanIdentifier)];
+    const cleanEmail = isValidEmail(cleanIdentifier)
+      ? normalizeEmail(cleanIdentifier)
+      : normalizeEmail(alias?.email);
+
+    if (!cleanEmail) {
+      const legacySession = await loginLegacyUser(legacyUser, password, rememberUser);
+      if (legacySession) return { ok: true, user: legacySession };
+      return { ok: false, message: "Username not found on this device. Use the email you registered with, or create a new account." };
     }
 
     try {
@@ -112,6 +179,8 @@
       const session = await syncFirebaseUser(credential.user, rememberUser);
       return { ok: true, user: session };
     } catch (error) {
+      const legacySession = await loginLegacyUser(legacyUser, password, rememberUser);
+      if (legacySession) return { ok: true, user: legacySession };
       return { ok: false, message: firebaseErrorMessage(error) };
     }
   }
@@ -123,7 +192,10 @@
     const password = String(payload.password || "");
 
     if (!fullName || !username || !isValidEmail(email) || !password) {
-      return { ok: false, message: "Please complete every field." };
+      return { ok: false, message: "Please complete every field with a valid email address." };
+    }
+    if (!isValidUsername(username)) {
+      return { ok: false, message: "Username must be 3–24 characters and use letters, numbers, . _ or -." };
     }
 
     try {
