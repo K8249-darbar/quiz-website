@@ -14,6 +14,8 @@ if (!authManager || !authManager.isAuthenticated()) {
   window.location.replace(LOGIN_PAGE);
 }
 
+let isAdminUser = false;
+
 const state = {
   candidate: null,
   questions: [],
@@ -279,7 +281,27 @@ const navSettingsBtn = document.getElementById("nav-settings-btn");
 const dashboardSection = document.getElementById("dashboard-section");
 const settingsSection = document.getElementById("settings-section");
 
+function refreshAdminAccess() {
+  isAdminUser = Boolean(
+    authManager &&
+    typeof authManager.isAdmin === "function" &&
+    authManager.isAdmin()
+  );
+
+  if (navDashboardBtn) navDashboardBtn.hidden = !isAdminUser;
+  if (!isAdminUser && dashboardSection) dashboardSection.classList.add("hidden");
+}
+
+refreshAdminAccess();
+if (authManager && typeof authManager.whenAuthReady === "function") {
+  authManager.whenAuthReady().then(refreshAdminAccess);
+}
+
 function showSection(targetSection) {
+  if (targetSection === dashboardSection && !isAdminUser) {
+    targetSection = setupScreen;
+  }
+
   playSound("click");
   if (quizScreen && !quizScreen.classList.contains("hidden")) {
     quizScreen.classList.add("hidden");
@@ -307,7 +329,9 @@ function showSection(targetSection) {
 }
 
 if (navSetupBtn) navSetupBtn.addEventListener("click", () => showSection(setupScreen));
-if (navDashboardBtn) navDashboardBtn.addEventListener("click", () => showSection(dashboardSection));
+if (navDashboardBtn) {
+  navDashboardBtn.addEventListener("click", () => showSection(dashboardSection));
+}
 if (navSettingsBtn) navSettingsBtn.addEventListener("click", () => showSection(settingsSection));
 
 function shuffle(array) {
