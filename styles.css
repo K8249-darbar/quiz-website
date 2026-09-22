@@ -794,6 +794,13 @@ select option {
   font-size: 0.9rem;
 }
 
+.achievement-help {
+  margin: 0.5rem 0 0;
+  color: var(--brand);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
 .streak-display {
   display: flex;
   align-items: center;
@@ -876,6 +883,19 @@ select option {
   color: var(--text-soft);
   font-size: 0.86rem;
   line-height: 1.4;
+}
+
+.achievement-card .achievement-progress {
+  color: var(--text-strong);
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: #e6f2ee;
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+}
+
+.achievement-card.unlocked .achievement-progress {
+  color: var(--brand-dark);
 }
 
 .achievement-status {

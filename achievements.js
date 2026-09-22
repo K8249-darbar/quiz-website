@@ -67,6 +67,7 @@ if (!achievementAuthManager || !achievementAuthManager.isAuthenticated()) {
 
 const achievementGrid = document.getElementById("achievement-grid");
 const achievementSummary = document.getElementById("achievement-summary");
+const achievementHelp = document.getElementById("achievement-help");
 const achievementCurrentUser = document.getElementById("current-user");
 const backToQuizBtn = document.getElementById("back-to-quiz-btn");
 const historyBtn = document.getElementById("history-btn");
@@ -88,9 +89,23 @@ function getStoredResults() {
     const results = JSON.parse(
       localStorage.getItem(ACHIEVEMENT_RESULT_STORAGE_KEY) || "[]"
     );
-    return Array.isArray(results)
-      ? results.filter((result) => result?.ownerId === getCurrentUserKey())
-      : [];
+    if (!Array.isArray(results)) return [];
+
+    const userResults = results.filter(
+      (result) => result?.ownerId === getCurrentUserKey()
+    );
+
+    // Results created before account ownership was introduced belong to the
+    // original administrator's local dashboard. Count them only for that
+    // trusted Firebase administrator; other users never see or receive them.
+    if (achievementAuthManager?.isAdmin?.()) {
+      return [
+        ...userResults,
+        ...results.filter((result) => !result?.ownerId)
+      ];
+    }
+
+    return userResults;
   } catch (error) {
     return [];
   }
@@ -184,6 +199,34 @@ function getEligibleAchievementIds(results) {
   return eligibleIds;
 }
 
+function getAchievementProgress(achievement, metrics, isUnlocked) {
+  if (isUnlocked) return "Goal completed";
+
+  const progress = (current, goal, label) => `${Math.min(current, goal)} / ${goal} ${label}`;
+  switch (achievement.id) {
+    case "first-quiz":
+      return progress(metrics.totalQuizzes, 1, "quiz");
+    case "quiz-beginner":
+      return progress(metrics.totalQuizzes, 3, "quizzes");
+    case "quiz-expert":
+      return progress(metrics.totalQuizzes, 5, "quizzes");
+    case "perfect-score":
+      return metrics.hasPerfectScore ? "100% score achieved" : "Get 100% in one quiz";
+    case "questions-completed":
+      return progress(metrics.totalQuestions, 100, "questions");
+    case "quizzes-completed":
+      return progress(metrics.totalQuizzes, 10, "quizzes");
+    case "correct-answers":
+      return progress(metrics.totalCorrect, 50, "correct answers");
+    case "fast-thinker":
+      return metrics.hasFastQuiz ? "Fast score achieved" : "Score 60%+ in 60 seconds";
+    case "quiz-master":
+      return "Unlock the other 8 badges";
+    default:
+      return "Keep playing to unlock";
+  }
+}
+
 function synchronizeAchievements(showPopup) {
   const achievementState = getAchievementState();
   const unlockedIdSet = new Set(achievementState.unlockedIds);
@@ -269,8 +312,15 @@ function renderAchievementsPage() {
     return;
   }
 
+  const results = getStoredResults();
+  const metrics = getAchievementMetrics(results);
   const unlockedIds = new Set(getAchievementState().unlockedIds);
   achievementSummary.textContent = `${unlockedIds.size} of ${ACHIEVEMENTS.length} badges unlocked.`;
+  if (achievementHelp) {
+    achievementHelp.textContent = results.length
+      ? `Based on ${results.length} completed ${results.length === 1 ? "quiz" : "quizzes"}. New badges are awarded automatically after submitting a quiz.`
+      : "Complete and submit your first quiz to unlock the First Quiz badge automatically.";
+  }
   achievementGrid.innerHTML = "";
 
   ACHIEVEMENTS.forEach((achievement) => {
@@ -279,6 +329,7 @@ function renderAchievementsPage() {
     const icon = document.createElement("div");
     const title = document.createElement("h3");
     const description = document.createElement("p");
+    const progress = document.createElement("p");
     const status = document.createElement("span");
 
     card.className = `achievement-card ${isUnlocked ? "unlocked" : "locked"}`;
@@ -286,9 +337,11 @@ function renderAchievementsPage() {
     icon.textContent = isUnlocked ? achievement.icon : "🔒";
     title.textContent = achievement.name;
     description.textContent = achievement.description;
+    progress.className = "achievement-progress";
+    progress.textContent = getAchievementProgress(achievement, metrics, isUnlocked);
     status.className = "achievement-status";
     status.textContent = isUnlocked ? "Unlocked" : "Locked";
-    card.append(icon, title, description, status);
+    card.append(icon, title, description, progress, status);
     achievementGrid.appendChild(card);
   });
 }
@@ -368,7 +421,7 @@ window.addEventListener("storage", (event) => {
   }
 });
 
-synchronizeAchievements(false);
+synchronizeAchievements(true);
 setCurrentUserBadge();
 renderAchievementsPage();
 })();
