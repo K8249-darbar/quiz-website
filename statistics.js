@@ -29,12 +29,18 @@ const statisticElements = {
 let scoreChartInstance = null;
 let difficultyChartInstance = null;
 
+function getCurrentUserKey() {
+  return statisticsAuthManager?.getCurrentUserKey?.() || "anonymous";
+}
+
 function getStoredResults() {
   try {
     const results = JSON.parse(
       localStorage.getItem(STATISTICS_STORAGE_KEY) || "[]"
     );
-    return Array.isArray(results) ? results : [];
+    return Array.isArray(results)
+      ? results.filter((result) => result?.ownerId === getCurrentUserKey())
+      : [];
   } catch (error) {
     return [];
   }

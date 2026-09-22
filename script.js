@@ -222,6 +222,7 @@ if (settingSoundVolume) {
 if (settingsForm) {
   settingsForm.addEventListener("submit", (e) => {
     e.preventDefault();
+    if (!isAdminUser) return;
     const newSettings = {
       themeMode: settingThemeMode ? settingThemeMode.value : "light",
       fontSize: settingFontSize ? settingFontSize.value : "normal",
@@ -245,6 +246,7 @@ if (settingsForm) {
 
 if (exportAllDataBtn) {
   exportAllDataBtn.addEventListener("click", () => {
+    if (!isAdminUser) return;
     const data = {
       results: JSON.parse(localStorage.getItem("ce_quiz_results_v1") || "[]"),
       achievements: JSON.parse(localStorage.getItem("ce_quiz_achievements_v1") || "{}"),
@@ -265,6 +267,7 @@ if (exportAllDataBtn) {
 
 if (resetAllDataBtn) {
   resetAllDataBtn.addEventListener("click", () => {
+    if (!isAdminUser) return;
     if (confirm("⚠️ WARNING: Are you sure you want to clear all quiz results, history, streaks, and settings? This cannot be undone.")) {
       localStorage.clear();
       sessionStorage.clear();
@@ -277,7 +280,7 @@ if (resetAllDataBtn) {
 // SECTION NAVIGATION CONTROLLER
 const navSetupBtn = document.getElementById("nav-setup-btn");
 let navDashboardBtn = null;
-const navSettingsBtn = document.getElementById("nav-settings-btn");
+let navSettingsBtn = null;
 const dashboardSection = document.getElementById("dashboard-section");
 const settingsSection = document.getElementById("settings-section");
 
@@ -298,6 +301,21 @@ function addAdminDashboardButton() {
   navDashboardBtn = button;
 }
 
+function addAdminSettingsButton() {
+  if (navSettingsBtn) return;
+  const navigation = document.getElementById("main-nav-bar");
+  if (!navigation) return;
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "nav-btn";
+  button.id = "nav-settings-btn";
+  button.textContent = "⚙️ Settings";
+  button.addEventListener("click", () => showSection(settingsSection));
+  navigation.append(button);
+  navSettingsBtn = button;
+}
+
 function refreshAdminAccess() {
   isAdminUser = Boolean(
     authManager &&
@@ -305,10 +323,20 @@ function refreshAdminAccess() {
     authManager.isAdmin()
   );
 
-  if (isAdminUser) addAdminDashboardButton();
-  else navDashboardBtn?.remove();
+  if (isAdminUser) {
+    addAdminDashboardButton();
+    addAdminSettingsButton();
+  } else {
+    navDashboardBtn?.remove();
+    navDashboardBtn = null;
+    navSettingsBtn?.remove();
+    navSettingsBtn = null;
+  }
 
-  if (!isAdminUser && dashboardSection) dashboardSection.classList.add("hidden");
+  if (!isAdminUser) {
+    dashboardSection?.classList.add("hidden");
+    settingsSection?.classList.add("hidden");
+  }
 }
 
 refreshAdminAccess();
@@ -317,7 +345,7 @@ if (authManager && typeof authManager.whenAuthReady === "function") {
 }
 
 function showSection(targetSection) {
-  if (targetSection === dashboardSection && !isAdminUser) {
+  if ((targetSection === dashboardSection || targetSection === settingsSection) && !isAdminUser) {
     targetSection = setupScreen;
   }
 
@@ -348,8 +376,6 @@ function showSection(targetSection) {
 }
 
 if (navSetupBtn) navSetupBtn.addEventListener("click", () => showSection(setupScreen));
-if (navSettingsBtn) navSettingsBtn.addEventListener("click", () => showSection(settingsSection));
-
 function shuffle(array) {
   const result = [...array];
   for (let index = result.length - 1; index > 0; index -= 1) {
@@ -390,7 +416,7 @@ function formatDate(dateIso) {
 }
 
 function getStoredHighestStreak() {
-  const highestStreak = Number(localStorage.getItem(STREAK_STORAGE_KEY));
+  const highestStreak = Number(localStorage.getItem(getUserStorageKey(STREAK_STORAGE_KEY)));
   return Number.isFinite(highestStreak) && highestStreak > 0
     ? highestStreak
     : 0;
@@ -421,7 +447,7 @@ function updateStreak(isCorrect) {
   state.currentStreak = isCorrect ? state.currentStreak + 1 : 0;
   if (state.currentStreak > state.highestStreak) {
     state.highestStreak = state.currentStreak;
-    localStorage.setItem(STREAK_STORAGE_KEY, String(state.highestStreak));
+    localStorage.setItem(getUserStorageKey(STREAK_STORAGE_KEY), String(state.highestStreak));
   }
 
   updateStreakUI(true);
@@ -435,6 +461,15 @@ function getStoredResults() {
   } catch (error) {
     return [];
   }
+}
+
+function getCurrentSession() {
+  return authManager?.getSession?.() || null;
+}
+
+function getUserStorageKey(baseKey) {
+  const userKey = authManager?.getCurrentUserKey?.() || "anonymous";
+  return `${baseKey}:${userKey}`;
 }
 
 function setStoredResults(results) {
@@ -921,6 +956,9 @@ function calculateResult(reason) {
   const timeUsedSeconds = Math.max(0, state.totalSeconds - state.timerSeconds);
 
   return {
+    ownerId: authManager?.getCurrentUserKey?.() || "anonymous",
+    ownerEmail: getCurrentSession()?.email || "",
+    ownerName: getCurrentSession()?.fullName || getCurrentSession()?.username || "Guest",
     candidateName: state.candidate.candidateName,
     rollNumber: state.candidate.rollNumber,
     subject: state.candidate.subject,
@@ -1274,7 +1312,7 @@ if (logoutBtn) {
 }
 
 window.addEventListener("storage", (event) => {
-  if (event.key === STREAK_STORAGE_KEY) {
+  if (event.key === getUserStorageKey(STREAK_STORAGE_KEY)) {
     state.highestStreak = Math.max(
       state.highestStreak,
       getStoredHighestStreak()

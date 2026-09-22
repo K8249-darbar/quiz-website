@@ -15,6 +15,14 @@ const statisticsBtn = document.getElementById("statistics-btn");
 const historyCurrentUserBadge = document.getElementById("current-user");
 const historyLogoutBtn = document.getElementById("logout-btn");
 
+function getCurrentUserKey() {
+  return historyAuthManager?.getCurrentUserKey?.() || "anonymous";
+}
+
+function isCurrentUsersRecord(record) {
+  return Boolean(record?.ownerId) && record.ownerId === getCurrentUserKey();
+}
+
 function getStoredHistory() {
   try {
     const storedHistory = JSON.parse(
@@ -47,6 +55,7 @@ function renderHistory() {
 
   const historyEntries = getStoredHistory()
     .map((record, storageIndex) => ({ record, storageIndex }))
+    .filter(({ record }) => isCurrentUsersRecord(record))
     .sort(
       (first, second) =>
         new Date(second.record.submittedAt) - new Date(first.record.submittedAt)
@@ -98,6 +107,7 @@ function deleteHistoryEntry(storageIndex) {
   }
 
   const history = getStoredHistory();
+  if (!isCurrentUsersRecord(history[storageIndex])) return;
   history.splice(storageIndex, 1);
   setStoredHistory(history);
   renderHistory();
@@ -144,11 +154,11 @@ window.renderHistory = renderHistory;
 
 if (clearAllHistoryBtn) {
   clearAllHistoryBtn.addEventListener("click", () => {
-    if (!confirm("Are you sure you want to clear all quiz history?")) {
+    if (!confirm("Are you sure you want to clear your quiz history?")) {
       return;
     }
 
-    setStoredHistory([]);
+    setStoredHistory(getStoredHistory().filter((record) => !isCurrentUsersRecord(record)));
     renderHistory();
   });
 }

@@ -184,6 +184,12 @@
     return Boolean(getSession());
   }
 
+  function getCurrentUserKey() {
+    const session = getSession();
+    if (!session) return "anonymous";
+    return String(session.uid || normalizeEmail(session.email) || session.username || "anonymous");
+  }
+
   function isAdmin() {
     const session = getSession();
     const firebaseUser = window.auth?.currentUser;
@@ -236,6 +242,7 @@
     isAuthenticated,
     isAdmin,
     whenAuthReady,
+    getCurrentUserKey,
     getSession,
     clearSession,
     updateUserProfile

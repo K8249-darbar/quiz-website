@@ -75,12 +75,22 @@ const achievementLogoutBtn = document.getElementById("logout-btn");
 const achievementPopupQueue = [];
 let isAchievementPopupVisible = false;
 
+function getCurrentUserKey() {
+  return achievementAuthManager?.getCurrentUserKey?.() || "anonymous";
+}
+
+function getAchievementStorageKey() {
+  return `${ACHIEVEMENT_STORAGE_KEY}:${getCurrentUserKey()}`;
+}
+
 function getStoredResults() {
   try {
     const results = JSON.parse(
       localStorage.getItem(ACHIEVEMENT_RESULT_STORAGE_KEY) || "[]"
     );
-    return Array.isArray(results) ? results : [];
+    return Array.isArray(results)
+      ? results.filter((result) => result?.ownerId === getCurrentUserKey())
+      : [];
   } catch (error) {
     return [];
   }
@@ -89,7 +99,7 @@ function getStoredResults() {
 function getAchievementState() {
   try {
     const storedState = JSON.parse(
-      localStorage.getItem(ACHIEVEMENT_STORAGE_KEY) || "{}"
+      localStorage.getItem(getAchievementStorageKey()) || "{}"
     );
     const unlockedIds = Array.isArray(storedState)
       ? storedState
@@ -113,7 +123,7 @@ function getAchievementState() {
 }
 
 function setAchievementState(state) {
-  localStorage.setItem(ACHIEVEMENT_STORAGE_KEY, JSON.stringify(state));
+  localStorage.setItem(getAchievementStorageKey(), JSON.stringify(state));
   window.dispatchEvent(new CustomEvent("quiz:achievements-updated"));
 }
 
@@ -352,7 +362,7 @@ window.addEventListener("storage", (event) => {
   }
   if (
     event.key === ACHIEVEMENT_RESULT_STORAGE_KEY ||
-    event.key === ACHIEVEMENT_STORAGE_KEY
+    event.key === getAchievementStorageKey()
   ) {
     renderAchievementsPage();
   }
