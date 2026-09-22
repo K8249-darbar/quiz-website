@@ -73,6 +73,10 @@ const achievementGrid = document.getElementById("achievement-grid");
 const achievementSummary = document.getElementById("achievement-summary");
 const achievementHelp = document.getElementById("achievement-help");
 const quizMasterCertificate = document.getElementById("quiz-master-certificate");
+const certificateCardKicker = document.getElementById("certificate-card-kicker");
+const certificateCardTitle = document.getElementById("certificate-card-title");
+const certificateCardMessage = document.getElementById("certificate-card-message");
+const openCertificateBtn = document.getElementById("open-certificate-btn");
 const achievementCurrentUser = document.getElementById("current-user");
 const backToQuizBtn = document.getElementById("back-to-quiz-btn");
 const historyBtn = document.getElementById("history-btn");
@@ -320,11 +324,31 @@ function renderAchievementsPage() {
   const results = getStoredResults();
   const metrics = getAchievementMetrics(results);
   const unlockedIds = new Set(getAchievementState().unlockedIds);
-  achievementSummary.textContent = `${unlockedIds.size} of ${ACHIEVEMENTS.length} badges unlocked.`;
+  const completedRequiredTasks = CERTIFICATE_REQUIRED_ACHIEVEMENT_IDS.filter(
+    (achievementId) => unlockedIds.has(achievementId)
+  ).length;
+  const hasCompletedAllTasks = completedRequiredTasks === CERTIFICATE_REQUIRED_ACHIEVEMENT_IDS.length;
+  achievementSummary.textContent = `${completedRequiredTasks} of ${CERTIFICATE_REQUIRED_ACHIEVEMENT_IDS.length} required tasks completed · ${unlockedIds.size} badges unlocked.`;
   if (quizMasterCertificate) {
-    quizMasterCertificate.hidden = !CERTIFICATE_REQUIRED_ACHIEVEMENT_IDS.every(
-      (achievementId) => unlockedIds.has(achievementId)
-    );
+    quizMasterCertificate.classList.toggle("ready", hasCompletedAllTasks);
+  }
+  if (certificateCardKicker) {
+    certificateCardKicker.textContent = hasCompletedAllTasks
+      ? "All Achievement Tasks Completed"
+      : "Final Achievement Certificate";
+  }
+  if (certificateCardTitle) {
+    certificateCardTitle.textContent = hasCompletedAllTasks
+      ? "🏆 Your Achievement Certificate is ready"
+      : `📜 Certificate locked — ${CERTIFICATE_REQUIRED_ACHIEVEMENT_IDS.length - completedRequiredTasks} ${CERTIFICATE_REQUIRED_ACHIEVEMENT_IDS.length - completedRequiredTasks === 1 ? "task" : "tasks"} remaining`;
+  }
+  if (certificateCardMessage) {
+    certificateCardMessage.textContent = hasCompletedAllTasks
+      ? "You completed every required badge task. Open your professional certificate and save it as PDF."
+      : `Complete all ${CERTIFICATE_REQUIRED_ACHIEVEMENT_IDS.length} required achievement tasks. Each completed task awards its own badge.`;
+  }
+  if (openCertificateBtn) {
+    openCertificateBtn.hidden = !hasCompletedAllTasks;
   }
   if (achievementHelp) {
     achievementHelp.textContent = results.length

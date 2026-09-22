@@ -573,6 +573,14 @@ function awardNewBadges() {
   return newlyUnlocked;
 }
 
+function getCompletedAchievementTaskCount() {
+  const requiredIds = RESULT_BADGES
+    .filter((badge) => badge.id !== "quiz-master")
+    .map((badge) => badge.id);
+  const unlockedIds = new Set(getAchievementStateForCurrentUser().unlockedIds);
+  return requiredIds.filter((badgeId) => unlockedIds.has(badgeId)).length;
+}
+
 function getRankedResults(results) {
   return [...results].sort((a, b) => {
     if (b.percentage !== a.percentage) return b.percentage - a.percentage;
@@ -1078,6 +1086,8 @@ function calculateResult(reason) {
 
 function renderResultSummary(result, newlyUnlockedBadges = []) {
   if (!resultSummary) return;
+  const completedTasks = getCompletedAchievementTaskCount();
+  const requiredTaskCount = RESULT_BADGES.length - 1;
   resultSummary.innerHTML = `
     <div class="result-banner">
       <p><strong>Candidate:</strong> ${result.candidateName} (${result.rollNumber})</p>
@@ -1093,6 +1103,10 @@ function renderResultSummary(result, newlyUnlockedBadges = []) {
       <div class="stat-box"><h3>Unanswered</h3><p>${result.unanswered}</p></div>
       <div class="stat-box"><h3>Time Used</h3><p>${formatTime(result.timeUsedSeconds)}</p></div>
     </div>
+    <section class="achievement-progress-banner">
+      <strong>🎖️ Achievement progress: ${completedTasks} / ${requiredTaskCount} required tasks completed</strong>
+      <span>${completedTasks === requiredTaskCount ? "Final certificate unlocked in Achievements." : "Each completed task unlocks its own badge."}</span>
+    </section>
     ${newlyUnlockedBadges.length ? `
       <section class="badge-earned-card" aria-live="polite">
         <p class="hero-kicker">Achievement Unlocked</p>
