@@ -1304,7 +1304,7 @@ if (exportResultsBtn) {
 
 if (logoutBtn) {
   logoutBtn.addEventListener("click", () => {
-    if (confirm("Do you want to log out from the Quiz Arena?")) {
+  if (confirm("Do you want to log out from the Quiz Game?")) {
       authManager.clearSession();
       window.location.href = LOGIN_PAGE;
     }
