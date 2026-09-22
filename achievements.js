@@ -61,6 +61,10 @@ const ACHIEVEMENTS = [
   }
 ];
 
+const CERTIFICATE_REQUIRED_ACHIEVEMENT_IDS = ACHIEVEMENTS
+  .filter((achievement) => achievement.id !== "quiz-master")
+  .map((achievement) => achievement.id);
+
 if (!achievementAuthManager || !achievementAuthManager.isAuthenticated()) {
   window.location.replace(ACHIEVEMENT_LOGIN_PAGE);
 }
@@ -68,6 +72,7 @@ if (!achievementAuthManager || !achievementAuthManager.isAuthenticated()) {
 const achievementGrid = document.getElementById("achievement-grid");
 const achievementSummary = document.getElementById("achievement-summary");
 const achievementHelp = document.getElementById("achievement-help");
+const quizMasterCertificate = document.getElementById("quiz-master-certificate");
 const achievementCurrentUser = document.getElementById("current-user");
 const backToQuizBtn = document.getElementById("back-to-quiz-btn");
 const historyBtn = document.getElementById("history-btn");
@@ -316,6 +321,11 @@ function renderAchievementsPage() {
   const metrics = getAchievementMetrics(results);
   const unlockedIds = new Set(getAchievementState().unlockedIds);
   achievementSummary.textContent = `${unlockedIds.size} of ${ACHIEVEMENTS.length} badges unlocked.`;
+  if (quizMasterCertificate) {
+    quizMasterCertificate.hidden = !CERTIFICATE_REQUIRED_ACHIEVEMENT_IDS.every(
+      (achievementId) => unlockedIds.has(achievementId)
+    );
+  }
   if (achievementHelp) {
     achievementHelp.textContent = results.length
       ? `Based on ${results.length} completed ${results.length === 1 ? "quiz" : "quizzes"}. New badges are awarded automatically after submitting a quiz.`

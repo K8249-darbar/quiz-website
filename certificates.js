@@ -1,5 +1,16 @@
 (() => {
   const RESULTS_KEY = "ce_quiz_results_v1";
+  const ACHIEVEMENTS_KEY = "ce_quiz_achievements_v1";
+  const REQUIRED_ACHIEVEMENT_IDS = [
+    "first-quiz",
+    "quiz-beginner",
+    "quiz-expert",
+    "perfect-score",
+    "questions-completed",
+    "quizzes-completed",
+    "correct-answers",
+    "fast-thinker"
+  ];
   const LOGIN_PAGE = "login.html";
   const authManager = window.AuthManager;
 
@@ -11,23 +22,31 @@
   const elements = {
     currentUser: document.getElementById("current-user"),
     logout: document.getElementById("logout-btn"),
-    empty: document.getElementById("certificate-empty"),
+    locked: document.getElementById("certificate-locked"),
     workspace: document.getElementById("certificate-workspace"),
-    list: document.getElementById("certificate-list"),
     recipient: document.getElementById("certificate-recipient"),
-    score: document.getElementById("certificate-score"),
-    subject: document.getElementById("certificate-subject"),
-    time: document.getElementById("certificate-time"),
+    badges: document.getElementById("certificate-badges"),
+    quizzes: document.getElementById("certificate-quizzes"),
+    correct: document.getElementById("certificate-correct"),
     date: document.getElementById("certificate-date"),
     certificateId: document.getElementById("certificate-id"),
     download: document.getElementById("download-certificate-btn")
   };
 
-  let certificates = [];
-  let selectedCertificateId = new URLSearchParams(window.location.search).get("certificate") || "";
-
   function getCurrentUserKey() {
     return authManager.getCurrentUserKey?.() || "anonymous";
+  }
+
+  function getAchievementState() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(`${ACHIEVEMENTS_KEY}:${getCurrentUserKey()}`) || "{}");
+      return {
+        unlockedIds: Array.isArray(stored?.unlockedIds) ? stored.unlockedIds : [],
+        unlockedAt: stored?.unlockedAt && typeof stored.unlockedAt === "object" ? stored.unlockedAt : {}
+      };
+    } catch {
+      return { unlockedIds: [], unlockedAt: {} };
+    }
   }
 
   function getStoredResults() {
@@ -35,10 +54,9 @@
       const results = JSON.parse(localStorage.getItem(RESULTS_KEY) || "[]");
       if (!Array.isArray(results)) return [];
       const owned = results.filter((result) => result?.ownerId === getCurrentUserKey());
-      if (authManager.isAdmin?.()) {
-        return [...owned, ...results.filter((result) => !result?.ownerId)];
-      }
-      return owned;
+      return authManager.isAdmin?.()
+        ? [...owned, ...results.filter((result) => !result?.ownerId)]
+        : owned;
     } catch {
       return [];
     }
@@ -53,36 +71,11 @@
     return (result >>> 0).toString(36).toUpperCase().padStart(7, "0");
   }
 
-  function getCertificateId(result, index) {
-    if (result?.certificateId) return result.certificateId;
-    return `CEQ-LEGACY-${hash(`${result?.submittedAt || ""}-${result?.candidateName || ""}-${index}`)}`;
-  }
-
-  function getPercentage(result) {
-    const percentage = Number(result?.percentage);
-    if (Number.isFinite(percentage)) return percentage;
-    const total = Number(result?.totalQuestions) || 0;
-    return total ? ((Number(result?.correct) || 0) / total) * 100 : 0;
-  }
-
-  function formatTime(totalSeconds) {
-    const safeSeconds = Math.max(0, Number(totalSeconds) || 0);
-    const minutes = Math.floor(safeSeconds / 60).toString().padStart(2, "0");
-    const seconds = Math.floor(safeSeconds % 60).toString().padStart(2, "0");
-    return `${minutes}:${seconds}`;
-  }
-
   function formatDate(value) {
     const date = new Date(value);
     return Number.isNaN(date.getTime())
-      ? "Completion date unavailable"
+      ? "Achievement date unavailable"
       : date.toLocaleDateString(undefined, { day: "2-digit", month: "long", year: "numeric" });
-  }
-
-  function buildCertificates() {
-    return getStoredResults()
-      .map((result, index) => ({ ...result, generatedCertificateId: getCertificateId(result, index) }))
-      .sort((first, second) => new Date(second.submittedAt) - new Date(first.submittedAt));
   }
 
   function setCurrentUserBadge() {
@@ -93,50 +86,31 @@
     elements.currentUser.innerHTML = `<span class="user-badge-flex"><img src="${avatar}" class="user-header-avatar" alt="${name}" /><span class="user-name">${name}</span></span>`;
   }
 
-  function renderCertificate(certificate) {
-    if (!certificate) return;
-    const total = Number(certificate.totalQuestions) || 0;
-    const correct = Number(certificate.correct) || 0;
-    elements.recipient.textContent = certificate.candidateName || certificate.ownerName || authManager.getSession()?.fullName || "Quiz Participant";
-    elements.score.textContent = `${correct} / ${total} (${getPercentage(certificate).toFixed(2)}%)`;
-    elements.subject.textContent = certificate.subject || "Computer Engineering";
-    elements.time.textContent = formatTime(certificate.timeUsedSeconds);
-    elements.date.textContent = formatDate(certificate.submittedAt);
-    elements.certificateId.textContent = certificate.generatedCertificateId;
-  }
+  function renderCertificate() {
+    const achievementState = getAchievementState();
+    const hasCompletedAllTasks = REQUIRED_ACHIEVEMENT_IDS.every(
+      (achievementId) => achievementState.unlockedIds.includes(achievementId)
+    );
+    elements.locked.hidden = hasCompletedAllTasks;
+    elements.workspace.hidden = !hasCompletedAllTasks;
+    if (!hasCompletedAllTasks) return;
 
-  function selectCertificate(certificateId, updateUrl = true) {
-    const certificate = certificates.find((item) => item.generatedCertificateId === certificateId) || certificates[0];
-    if (!certificate) return;
-    selectedCertificateId = certificate.generatedCertificateId;
-    renderCertificate(certificate);
-    if (updateUrl) {
-      window.history.replaceState({}, "", `certificates.html?certificate=${encodeURIComponent(selectedCertificateId)}`);
-    }
-    renderCertificateList();
-  }
+    const results = getStoredResults();
+    const session = authManager.getSession();
+    const awardedAt = REQUIRED_ACHIEVEMENT_IDS
+      .map((achievementId) => achievementState.unlockedAt[achievementId])
+      .filter(Boolean)
+      .sort()
+      .at(-1) || new Date().toISOString();
+    const correctAnswers = results.reduce((total, result) => total + (Number(result.correct) || 0), 0);
+    const name = session?.fullName || session?.username || "Quiz Participant";
 
-  function renderCertificateList() {
-    if (!elements.list) return;
-    elements.list.innerHTML = "";
-    certificates.forEach((certificate) => {
-      const item = document.createElement("button");
-      const percentage = getPercentage(certificate);
-      item.type = "button";
-      item.className = `certificate-list-item ${certificate.generatedCertificateId === selectedCertificateId ? "active" : ""}`;
-      item.innerHTML = `<strong>${certificate.candidateName || certificate.ownerName || "Quiz Participant"}</strong><span>${certificate.subject || "Computer Engineering"}</span><small>${percentage.toFixed(2)}% · ${formatDate(certificate.submittedAt)}</small>`;
-      item.addEventListener("click", () => selectCertificate(certificate.generatedCertificateId));
-      elements.list.appendChild(item);
-    });
-  }
-
-  function render() {
-    certificates = buildCertificates();
-    const hasCertificates = certificates.length > 0;
-    elements.empty.hidden = hasCertificates;
-    elements.workspace.hidden = !hasCertificates;
-    if (!hasCertificates) return;
-    selectCertificate(selectedCertificateId || certificates[0].generatedCertificateId, false);
+    elements.recipient.textContent = name;
+    elements.badges.textContent = `${REQUIRED_ACHIEVEMENT_IDS.length} / ${REQUIRED_ACHIEVEMENT_IDS.length}`;
+    elements.quizzes.textContent = String(results.length);
+    elements.correct.textContent = String(correctAnswers);
+    elements.date.textContent = formatDate(awardedAt);
+    elements.certificateId.textContent = `CEQ-ACHIEVE-${hash(`${getCurrentUserKey()}-${awardedAt}`)}`;
   }
 
   elements.download?.addEventListener("click", () => window.print());
@@ -147,9 +121,11 @@
   });
 
   window.addEventListener("storage", (event) => {
-    if (event.key === RESULTS_KEY) render();
+    if (event.key === RESULTS_KEY || event.key === `${ACHIEVEMENTS_KEY}:${getCurrentUserKey()}`) {
+      renderCertificate();
+    }
   });
-  authManager.whenAuthReady?.().then(render);
+  authManager.whenAuthReady?.().then(renderCertificate);
   setCurrentUserBadge();
-  render();
+  renderCertificate();
 })();
