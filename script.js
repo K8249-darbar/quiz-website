@@ -276,10 +276,27 @@ if (resetAllDataBtn) {
 
 // SECTION NAVIGATION CONTROLLER
 const navSetupBtn = document.getElementById("nav-setup-btn");
-const navDashboardBtn = document.getElementById("nav-dashboard-btn");
+let navDashboardBtn = null;
 const navSettingsBtn = document.getElementById("nav-settings-btn");
 const dashboardSection = document.getElementById("dashboard-section");
 const settingsSection = document.getElementById("settings-section");
+
+function addAdminDashboardButton() {
+  if (navDashboardBtn) return;
+  const navigation = document.getElementById("main-nav-bar");
+  if (!navigation) return;
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "nav-btn";
+  button.id = "nav-dashboard-btn";
+  button.textContent = "📊 Admin Dashboard";
+  button.addEventListener("click", () => showSection(dashboardSection));
+
+  const firstLink = navigation.querySelector("a");
+  navigation.insertBefore(button, firstLink || null);
+  navDashboardBtn = button;
+}
 
 function refreshAdminAccess() {
   isAdminUser = Boolean(
@@ -288,10 +305,9 @@ function refreshAdminAccess() {
     authManager.isAdmin()
   );
 
-  if (navDashboardBtn) {
-    navDashboardBtn.hidden = !isAdminUser;
-    navDashboardBtn.setAttribute("aria-hidden", String(!isAdminUser));
-  }
+  if (isAdminUser) addAdminDashboardButton();
+  else navDashboardBtn?.remove();
+
   if (!isAdminUser && dashboardSection) dashboardSection.classList.add("hidden");
 }
 
@@ -332,9 +348,6 @@ function showSection(targetSection) {
 }
 
 if (navSetupBtn) navSetupBtn.addEventListener("click", () => showSection(setupScreen));
-if (navDashboardBtn) {
-  navDashboardBtn.addEventListener("click", () => showSection(dashboardSection));
-}
 if (navSettingsBtn) navSettingsBtn.addEventListener("click", () => showSection(settingsSection));
 
 function shuffle(array) {

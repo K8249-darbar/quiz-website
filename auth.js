@@ -189,9 +189,10 @@
     const firebaseUser = window.auth?.currentUser;
     return Boolean(
       session &&
-      session.role === "admin" &&
       firebaseUser &&
+      !session.isGuest &&
       firebaseUser.uid === session.uid &&
+      normalizeEmail(session.email) === ADMIN_EMAIL &&
       normalizeEmail(firebaseUser.email) === ADMIN_EMAIL
     );
   }
