@@ -152,7 +152,10 @@
     }
   }
 
-  function guestLogin() {
+  async function guestLogin() {
+    if (window.auth) {
+      await window.auth.signOut();
+    }
     const guestId = Math.floor(1000 + Math.random() * 9000);
     const session = createSession(
       { uid: `guest_${guestId}`, email: `guest_${guestId}@quiz.local` },

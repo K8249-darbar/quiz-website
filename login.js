@@ -59,8 +59,16 @@
   }
 
   if (guestButton) {
-    guestButton.addEventListener("click", () => {
-      window.AuthManager.guestLogin();
+    guestButton.addEventListener("click", async () => {
+      setMessage(loginMessage, "");
+      setLoading(guestButton, true, "👤 Guest Login");
+      try {
+        await window.AuthManager.guestLogin();
+      } catch {
+        setMessage(loginMessage, "Guest login could not start. Please try again.");
+        setLoading(guestButton, false, "👤 Guest Login");
+        return;
+      }
       window.location.href = "index.html";
     });
   }
