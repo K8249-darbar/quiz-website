@@ -324,23 +324,17 @@ window.renderAchievementsPage = renderAchievementsPage;
 
 if (backToQuizBtn) {
   backToQuizBtn.addEventListener("click", () => {
-    if (typeof window.switchSlide === "function") {
-      window.switchSlide(1, "left");
-    }
+    window.location.href = "index.html";
   });
 }
 if (historyBtn) {
   historyBtn.addEventListener("click", () => {
-    if (typeof window.switchSlide === "function") {
-      window.switchSlide(5, "right");
-    }
+    window.location.href = "history.html";
   });
 }
 if (statisticsBtn) {
   statisticsBtn.addEventListener("click", () => {
-    if (typeof window.switchSlide === "function") {
-      window.switchSlide(7, "right");
-    }
+    window.location.href = "statistics.html";
   });
 }
 if (achievementLogoutBtn) {

@@ -268,23 +268,17 @@ window.renderStatistics = renderStatistics;
 
 if (statisticElements.backToQuiz) {
   statisticElements.backToQuiz.addEventListener("click", () => {
-    if (typeof window.switchSlide === "function") {
-      window.switchSlide(1, "left");
-    }
+    window.location.href = "index.html";
   });
 }
 if (statisticElements.history) {
   statisticElements.history.addEventListener("click", () => {
-    if (typeof window.switchSlide === "function") {
-      window.switchSlide(5, "right");
-    }
+    window.location.href = "history.html";
   });
 }
 if (statisticElements.achievements) {
   statisticElements.achievements.addEventListener("click", () => {
-    if (typeof window.switchSlide === "function") {
-      window.switchSlide(6, "right");
-    }
+    window.location.href = "achievements.html";
   });
 }
 if (statisticElements.logout) {

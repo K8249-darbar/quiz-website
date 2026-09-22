@@ -155,25 +155,19 @@ if (clearAllHistoryBtn) {
 
 if (backToQuizBtn) {
   backToQuizBtn.addEventListener("click", () => {
-    if (typeof window.switchSlide === "function") {
-      window.switchSlide(1, "left");
-    }
+    window.location.href = "index.html";
   });
 }
 
 if (achievementsBtn) {
   achievementsBtn.addEventListener("click", () => {
-    if (typeof window.switchSlide === "function") {
-      window.switchSlide(6, "right");
-    }
+    window.location.href = "achievements.html";
   });
 }
 
 if (statisticsBtn) {
   statisticsBtn.addEventListener("click", () => {
-    if (typeof window.switchSlide === "function") {
-      window.switchSlide(7, "right");
-    }
+    window.location.href = "statistics.html";
   });
 }
 
