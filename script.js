@@ -2,6 +2,7 @@
 const RESULT_STORAGE_KEY = "ce_quiz_results_v1";
 const STREAK_STORAGE_KEY = "ce_quiz_highest_streak_v1";
 const SETTINGS_STORAGE_KEY = "ce_quiz_settings_v1";
+const ACHIEVEMENT_STORAGE_KEY = "ce_quiz_achievements_v1";
 const LOGIN_PAGE = "login.html";
 const DIFFICULTY_TIMER_SECONDS = {
   Easy: 20,
@@ -9,6 +10,18 @@ const DIFFICULTY_TIMER_SECONDS = {
   Hard: 10
 };
 const authManager = window.AuthManager;
+
+const RESULT_BADGES = [
+  { id: "first-quiz", name: "First Quiz", icon: "🏁" },
+  { id: "quiz-beginner", name: "Quiz Beginner", icon: "🌱" },
+  { id: "quiz-expert", name: "Quiz Expert", icon: "🎯" },
+  { id: "perfect-score", name: "Perfect Score", icon: "💯" },
+  { id: "questions-completed", name: "100 Questions Completed", icon: "📚" },
+  { id: "quizzes-completed", name: "10 Quizzes Completed", icon: "🔟" },
+  { id: "correct-answers", name: "50 Correct Answers", icon: "✅" },
+  { id: "fast-thinker", name: "Fast Thinker", icon: "⚡" },
+  { id: "quiz-master", name: "Quiz Master", icon: "🏆" }
+];
 
 if (!authManager || !authManager.isAuthenticated()) {
   window.location.replace(LOGIN_PAGE);
@@ -475,6 +488,89 @@ function getUserStorageKey(baseKey) {
 function setStoredResults(results) {
   localStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(results));
   window.dispatchEvent(new CustomEvent("quiz:results-updated"));
+}
+
+function getAchievementStorageKey() {
+  const userKey = authManager?.getCurrentUserKey?.() || "anonymous";
+  return `${ACHIEVEMENT_STORAGE_KEY}:${userKey}`;
+}
+
+function getResultsForCurrentUserBadges() {
+  const results = getStoredResults();
+  const userKey = authManager?.getCurrentUserKey?.() || "anonymous";
+  const ownedResults = results.filter((result) => result?.ownerId === userKey);
+  return authManager?.isAdmin?.()
+    ? [...ownedResults, ...results.filter((result) => !result?.ownerId)]
+    : ownedResults;
+}
+
+function getAchievementStateForCurrentUser() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(getAchievementStorageKey()) || "{}");
+    return {
+      unlockedIds: Array.isArray(stored?.unlockedIds) ? stored.unlockedIds : [],
+      unlockedAt: stored?.unlockedAt && typeof stored.unlockedAt === "object" ? stored.unlockedAt : {}
+    };
+  } catch {
+    return { unlockedIds: [], unlockedAt: {} };
+  }
+}
+
+function getEligibleBadgeIds(results) {
+  const metrics = results.reduce(
+    (summary, result) => {
+      const totalQuestions = Number(result?.totalQuestions) || 0;
+      const correct = Number(result?.correct) || 0;
+      const percentage = Number(result?.percentage) || 0;
+      const timeUsedSeconds = Number(result?.timeUsedSeconds) || 0;
+      summary.totalQuizzes += 1;
+      summary.totalQuestions += totalQuestions;
+      summary.totalCorrect += correct;
+      if (totalQuestions > 0 && correct === totalQuestions) summary.hasPerfectScore = true;
+      if (percentage >= 60 && timeUsedSeconds <= 60) summary.hasFastQuiz = true;
+      return summary;
+    },
+    { totalQuizzes: 0, totalQuestions: 0, totalCorrect: 0, hasPerfectScore: false, hasFastQuiz: false }
+  );
+  const eligible = new Set();
+  if (metrics.totalQuizzes >= 1) eligible.add("first-quiz");
+  if (metrics.totalQuizzes >= 3) eligible.add("quiz-beginner");
+  if (metrics.totalQuizzes >= 5) eligible.add("quiz-expert");
+  if (metrics.hasPerfectScore) eligible.add("perfect-score");
+  if (metrics.totalQuestions >= 100) eligible.add("questions-completed");
+  if (metrics.totalQuizzes >= 10) eligible.add("quizzes-completed");
+  if (metrics.totalCorrect >= 50) eligible.add("correct-answers");
+  if (metrics.hasFastQuiz) eligible.add("fast-thinker");
+
+  const requiredIds = RESULT_BADGES
+    .filter((badge) => badge.id !== "quiz-master")
+    .map((badge) => badge.id);
+  if (requiredIds.every((badgeId) => eligible.has(badgeId))) {
+    eligible.add("quiz-master");
+  }
+  return eligible;
+}
+
+function awardNewBadges() {
+  const currentState = getAchievementStateForCurrentUser();
+  const unlockedIds = new Set(currentState.unlockedIds);
+  const eligibleIds = getEligibleBadgeIds(getResultsForCurrentUserBadges());
+  const newlyUnlocked = RESULT_BADGES.filter(
+    (badge) => eligibleIds.has(badge.id) && !unlockedIds.has(badge.id)
+  );
+  if (!newlyUnlocked.length) return [];
+
+  const unlockedAt = { ...currentState.unlockedAt };
+  newlyUnlocked.forEach((badge) => {
+    unlockedIds.add(badge.id);
+    unlockedAt[badge.id] = new Date().toISOString();
+  });
+  localStorage.setItem(
+    getAchievementStorageKey(),
+    JSON.stringify({ unlockedIds: [...unlockedIds], unlockedAt })
+  );
+  window.dispatchEvent(new CustomEvent("quiz:achievements-updated"));
+  return newlyUnlocked;
 }
 
 function getRankedResults(results) {
@@ -980,7 +1076,7 @@ function calculateResult(reason) {
   };
 }
 
-function renderResultSummary(result) {
+function renderResultSummary(result, newlyUnlockedBadges = []) {
   if (!resultSummary) return;
   resultSummary.innerHTML = `
     <div class="result-banner">
@@ -997,6 +1093,14 @@ function renderResultSummary(result) {
       <div class="stat-box"><h3>Unanswered</h3><p>${result.unanswered}</p></div>
       <div class="stat-box"><h3>Time Used</h3><p>${formatTime(result.timeUsedSeconds)}</p></div>
     </div>
+    ${newlyUnlockedBadges.length ? `
+      <section class="badge-earned-card" aria-live="polite">
+        <p class="hero-kicker">Achievement Unlocked</p>
+        <h3>🎉 You earned ${newlyUnlockedBadges.length === 1 ? "a new badge" : "new badges"}</h3>
+        <div class="badge-earned-list">${newlyUnlockedBadges.map((badge) => `<span>${badge.icon} ${badge.name}</span>`).join("")}</div>
+        <p>See your complete badge progress in Achievements.</p>
+      </section>
+    ` : ""}
   `;
 }
 
@@ -1014,7 +1118,8 @@ function submitQuiz(reason) {
 
   const result = calculateResult(reason);
   persistResult(result);
-  renderResultSummary(result);
+  const newlyUnlockedBadges = awardNewBadges();
+  renderResultSummary(result, newlyUnlockedBadges);
   renderLeaderboard();
   showScreen("result");
 }

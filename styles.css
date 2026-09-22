@@ -1156,6 +1156,43 @@ select option {
   margin-top: 0;
 }
 
+.badge-earned-card {
+  margin-top: 1.25rem;
+  padding: 1.2rem;
+  color: #0d2822;
+  background: linear-gradient(135deg, #fff8d8, #f2fbf7);
+  border: 1px solid #d9b45b;
+  border-radius: 16px;
+  box-shadow: 0 10px 22px rgba(189, 145, 44, 0.14);
+}
+
+.badge-earned-card h3 {
+  margin: 0.35rem 0 0.75rem;
+  font-family: var(--font-heading);
+}
+
+.badge-earned-card > p:last-child {
+  margin: 0.8rem 0 0;
+  color: var(--text-soft);
+  font-size: 0.85rem;
+}
+
+.badge-earned-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.badge-earned-list span {
+  padding: 0.42rem 0.7rem;
+  color: #0d5c4e;
+  font-size: 0.84rem;
+  font-weight: 700;
+  background: #ffffff;
+  border: 1px solid rgba(13, 92, 78, 0.22);
+  border-radius: 999px;
+}
+
 .quiz-master-certificate {
   display: flex;
   align-items: center;
