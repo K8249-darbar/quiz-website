@@ -288,7 +288,10 @@ function refreshAdminAccess() {
     authManager.isAdmin()
   );
 
-  if (navDashboardBtn) navDashboardBtn.hidden = !isAdminUser;
+  if (navDashboardBtn) {
+    navDashboardBtn.hidden = !isAdminUser;
+    navDashboardBtn.setAttribute("aria-hidden", String(!isAdminUser));
+  }
   if (!isAdminUser && dashboardSection) dashboardSection.classList.add("hidden");
 }
 
